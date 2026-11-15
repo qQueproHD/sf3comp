@@ -220,18 +220,27 @@ void RegisterPortFeatures() {
                                   "How large the window opens, in times the board's 224 lines (it can be made any size by "
                                   "dragging its edges; full screen is on the launcher's first page and F11).",
                                   0, {"3x", "2x", "4x", "5x", "6x"}});
-    // (display_fullscreen, display_screen: frontend_sdl.cpp, issue #15; a CRT at the board's own resolution)
-    TheGame().features.push_back({"display_fullscreen", "Display", "Full screen mode",
-                                  "Desktop: full screen at the screen's own resolution, the picture fitted as the rows above "
-                                  "say. Arcade resolution: the screen switched to its mode closest to the board's 384 x 224 "
-                                  "at 59.6 Hz (an arcade monitor's, made with CRT Emudriver or a custom resolution), the "
-                                  "picture filling it pixel for pixel; turn Widescreen off for it. The menu is drawn at the "
-                                  "screen's own resolution there, its letters as sharp as they can be.",
-                                  0, {"Desktop", "Arcade resolution"}});
-    TheGame().features.push_back({"display_screen", "Display", "Screen",
+    // (crt_*: an arcade monitor (issue #15). Resolution and Screen: frontend_sdl.cpp, set on the launcher
+    // (kFeatureLauncherOnly), so a mode the monitor may not take is never chosen in the menu while playing; Compact
+    // menu: Port::CompactMenu, recomp-common's Menu::SetCompact)
+    TheGame().features.push_back({"crt_resolution", "Arcade monitor", "Full screen resolution",
+                                  "Off: full screen at the screen's own resolution, the picture fitted as the Display rows say. "
+                                  "384 x 224: the screen switched to the board's own resolution (an arcade monitor's modeline, "
+                                  "made with CRT Emudriver or a custom resolution), the picture filling it pixel for pixel, the "
+                                  "menu compact. Only that exact mode is used, at the refresh nearest the board's 59.6 Hz: if "
+                                  "the screen doesn't list it, full screen stays at the screen's own. Turn Widescreen off with "
+                                  "it. Set on the launcher; the in-game menu can only turn it off.",
+                                  kFeatureLauncherOnly, {"Off", "384 x 224"}});
+    TheGame().features.push_back({"crt_screen", "Arcade monitor", "Screen",
                                   "Which screen the game opens on and goes full screen on, where there are several: the main "
-                                  "one or another, in the order the system lists them. One that is not connected: the main.",
-                                  0, {"Main", "Second", "Third", "Fourth"}});
+                                  "one or another, in the order the system lists them. One that isn't connected: the main. "
+                                  "Set on the launcher; the in-game menu can only put it back to the main one.",
+                                  kFeatureLauncherOnly, {"Main", "Second", "Third", "Fourth"}});
+    TheGame().features.push_back({"crt_compact_menu", "Arcade monitor", "Compact menu",
+                                  "The in-game menu in small letters with its rows close together, as suits a screen of few "
+                                  "lines (a small window, an arcade monitor): a page's rows all shown at once, none running "
+                                  "into the next. Off: compact only in full screen at 384 x 224.",
+                                  0});
     // (custom_soundtrack: soundtrack.h; for a game whose sources follow its music driver: runtime/soundtrack.h)
     if (TheGame().songCount) {
         TheGame().features.push_back({"custom_soundtrack", "Sound", "Custom soundtrack",
@@ -250,10 +259,13 @@ Shape DisplayShape() {
     return static_cast<Shape>(std::clamp(FeatureValue("display_shape"), 0, 2));
 }
 bool ArcadeResolution() {
-    return FeatureValue("display_fullscreen") == 1;
+    return FeatureValue("crt_resolution") == 1;
 }
 int DisplayScreen() {
-    return std::clamp(FeatureValue("display_screen"), 0, 3);
+    return std::clamp(FeatureValue("crt_screen"), 0, 3);
+}
+bool CompactMenuChosen() {
+    return FeatureValue("crt_compact_menu") != 0;
 }
 int WindowSize() {
     static const int kTimes[] = {3, 2, 4, 5, 6};
@@ -1862,7 +1874,13 @@ void Port::RunFrame() {
         if (second != std::string::npos && menu.IsOpen()) {
             std::vector<uint32_t> pixels;
             uint32_t width = 0, height = 0;
-            MenuPicture(pixels, width, height);
+            // (CPS3RECOMP_MENU_SIZE=WxH: at that size, as on a screen of it; the menu compact as the Arcade monitor page says)
+            int wantWidth = 0, wantHeight = 0;
+            if (const char *size = getenv("CPS3RECOMP_MENU_SIZE")) {
+                sscanf(size, "%dx%d", &wantWidth, &wantHeight);
+            }
+            menu.SetCompact(CompactMenuChosen());
+            MenuPicture(pixels, width, height, wantWidth, wantHeight);
             menu.Draw(pixels.data(), static_cast<int>(width), static_cast<int>(height));
             WritePng(opt.menuTest.substr(second + 1).c_str(), pixels.data(), width, height);
         }

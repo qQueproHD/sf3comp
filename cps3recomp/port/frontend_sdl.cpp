@@ -68,21 +68,40 @@ namespace {
         return chosen;
     }
 
-    // The window's full screen as the Display page's full screen mode says (ArcadeResolution): the board's 384 x 224
-    // at its 59.6 Hz, or the screen's mode closest to it no smaller (an arcade monitor's, from CRT Emudriver or a custom
-    // resolution), on the chosen screen; else the desktop's own. Kept by the window for F11 too
+    // The screen's mode of exactly the board's 384 x 224 (an arcade monitor's, from CRT Emudriver or a custom
+    // resolution), at the refresh nearest the board's 59.6 Hz and no further than 5 Hz from it; false: it has none.
+    // Never another size or rate: a monitor of 15 kHz can be harmed by a mode it cannot take (issue #15)
+    bool ArcadeMode(SDL_DisplayID display, SDL_DisplayMode &found) {
+        int count = 0;
+        SDL_DisplayMode **modes = SDL_GetFullscreenDisplayModes(display, &count);
+        bool any = false;
+        for (int i = 0; modes && i < count; i++) {
+            const SDL_DisplayMode &mode = *modes[i];
+            const float density = mode.pixel_density > 0 ? mode.pixel_density : 1.0f;
+            const bool size = std::lround(mode.w * density) == Video::kWidth && std::lround(mode.h * density) == Video::kHeight;
+            const float off = std::fabs(mode.refresh_rate - static_cast<float>(Machine::kFramesPerSecond));
+            if (size && off <= 5.0f && (!any || off < std::fabs(found.refresh_rate - static_cast<float>(Machine::kFramesPerSecond)))) {
+                found = mode;
+                any = true;
+            }
+        }
+        SDL_free(modes);
+        return any;
+    }
+
+    // The window's full screen as the Arcade monitor page says (ArcadeResolution): the board's 384 x 224 on the chosen
+    // screen where it has that mode; else the desktop's own. Kept by the window for F11 too
     void SetFullscreenMode(SDL_Window *window) {
         SDL_DisplayMode mode;
-        if (ArcadeResolution() &&
-            SDL_GetClosestFullscreenDisplayMode(ChosenDisplay(), Video::kWidth, Video::kHeight, static_cast<float>(Machine::kFramesPerSecond), false, &mode)) {
+        if (ArcadeResolution() && ArcadeMode(ChosenDisplay(), mode)) {
             if (!SDL_SetWindowFullscreenMode(window, &mode)) {
                 fprintf(stderr, "full screen %dx%d at %.2f Hz: %s\n", mode.w, mode.h, mode.refresh_rate, SDL_GetError());
             }
             return;
         }
         if (ArcadeResolution()) {
-            fprintf(stderr, "full screen: no mode of %dx%d or larger on the screen (%s); the desktop's is used\n", Video::kWidth,
-                    Video::kHeight, SDL_GetError());
+            fprintf(stderr, "full screen: the screen has no %dx%d mode near %.1f Hz; full screen stays at its own resolution\n",
+                    Video::kWidth, Video::kHeight, Machine::kFramesPerSecond);
         }
         SDL_SetWindowFullscreenMode(window, nullptr);
     }
@@ -954,6 +973,13 @@ int RunWindowed(Port &port) {
         // (full screen in the arcade's resolution: the picture fills the screen's mode, whose shape the monitor gives it)
         const bool arcadeScreen = window && (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) && SDL_GetWindowFullscreenMode(window);
         const SDL_FRect where = FitPicture(width, height, port.ShownWidth(), Video::kHeight, arcadeScreen ? Shape::Fill : DisplayShape(), DisplayScaling());
+        // (the menu compact where the Arcade monitor page asks for it, or on the arcade monitor itself; drawn again when
+        // that changes)
+        if (const bool compact = CompactMenuChosen() || arcadeScreen; compact != port.menu.Compact()) {
+            port.menu.SetCompact(compact);
+            menuBase.clear();
+            menuDirty = true;
+        }
         // (the picture shown smaller than the menu's usual 672 lines (a small window, an arcade monitor): the menu drawn
         // on the screen's own pixels there, so that its letters are not shrunk; drawn again when that changes)
         {

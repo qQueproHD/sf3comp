@@ -47,6 +47,9 @@ enum : unsigned {
     // A long choice whose list in the in-game menu the player may make shorter on the launcher (recomp-common/settings.h:
     // MenuChoices, settings.ini's [menu]): the menu goes past the choices left out
     kFeatureMenuChoices = 128,
+    // Set on the launcher: the in-game menu shows it and can only put it back to its first choice (off). For a
+    // monitor's resolution, where a mode the monitor cannot take, chosen while playing, could harm it
+    kFeatureLauncherOnly = 256,
 };
 
 // Something the game's sources can do when the player asks (a row of the in-game menu, and a key if it has

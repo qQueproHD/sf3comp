@@ -357,9 +357,10 @@ void StartOnAndroid();
 Scaling DisplayScaling();
 Shape DisplayShape();
 int WindowSize();
-// The Display page's full screen mode (true: the screen switched to the board's resolution) and screen (0: the main
-// one, 1..3: the others in the system's order)
+// The Arcade monitor page's full screen resolution (true: the screen switched to the board's 384 x 224), screen (0:
+// the main one, 1..3: the others in the system's order) and Compact menu switch
 bool ArcadeResolution();
 int DisplayScreen();
+bool CompactMenuChosen();
 
 } // namespace port
