@@ -104,6 +104,9 @@ playable by either player.
   Enhanced (the default) adds free play, arcade timing, integer scaling and, in widescreen, invisible walls.
 - **Controls**: keyboard, gamepad or arcade stick, every button changeable per player.
 - **A custom soundtrack**: your own music in place of the board's, by song or as a playlist.
+- **The Dreamcast version's arranged music** (3rd Strike): put your own disc image of the Dreamcast 3rd Strike (a .cue or
+  .gdi with its tracks, or their .zip) beside the ROM set and choose Custom soundtrack → Dreamcast arranged; its
+  arranged stage themes play in place of the board's.
 - **Arcade timing** (on by default): the processor slows down where the real board does, checked frame by frame
   against a cycle-accurate model of it ([docs/TIMING.md](docs/TIMING.md)).
 - **A launcher** that checks your ROM set, sets every feature and both players' controls, hosts and joins online

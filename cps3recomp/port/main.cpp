@@ -11,6 +11,7 @@
 #include "png_write.h"
 #include "present.h"
 #include "port.h"
+#include "dreamcast.h"
 #include "../runtime/recomp.h"
 #include "../recomp-common/folders.h"
 #include "../recomp-common/proxy.h"
@@ -243,12 +244,20 @@ void RegisterPortFeatures() {
                                   0});
     // (custom_soundtrack: soundtrack.h; for a game whose sources follow its music driver: runtime/soundtrack.h)
     if (TheGame().songCount) {
-        TheGame().features.push_back({"custom_soundtrack", "Sound", "Custom soundtrack",
-                                      "Plays your own music files in place of the board's music; the sound effects and voices are "
-                                      "the board's. Files named for the game's songs (songs.txt in the folder lists them) replace "
-                                      "those songs; a folder of any other music plays as a playlist, one file after another. The "
-                                      "folder is chosen on the launcher's game page. Shuffled: the playlist in a random order.",
-                                      kFeatureEnhanced, {"Off", "On", "On, shuffled"}});
+        static std::string about; // (the feature keeps a pointer to it)
+        about = "Plays your own music files in place of the board's music; the sound effects and voices are "
+                            "the board's. Files named for the game's songs (songs.txt in the folder lists them) replace "
+                            "those songs; a folder of any other music plays as a playlist, one file after another. The "
+                            "folder is chosen on the launcher's game page. Shuffled: the playlist in a random order.";
+        std::vector<const char *> choices = {"Off", "On", "On, shuffled"};
+        if (!TheGame().dreamcastMusic.empty()) {
+            about += std::string(" Dreamcast arranged: the Dreamcast version's arranged music for the stages, from your own disc "
+                                 "image of it (") + TheGame().dreamcastDisc +
+                     ": a .cue or .gdi with its tracks, or the .zip of them) put beside the ROM set or in the soundtrack "
+                     "folder; it is copied out once, the first time (a few seconds).";
+            choices.push_back("Dreamcast arranged");
+        }
+        TheGame().features.push_back({"custom_soundtrack", "Sound", "Custom soundtrack", about.c_str(), kFeatureEnhanced, choices});
     }
 }
 
@@ -404,6 +413,60 @@ std::string Port::SoundtrackFolder() const {
     return PathText(TextPath(opt.settingsPath).parent_path() / "soundtrack");
 }
 
+// The Dreamcast version's music (Game::dreamcastMusic): its files in the folder "dreamcast" beside settings.ini, copied
+// there from the player's disc image the first time (looked for in the soundtrack folder the launcher chose, beside the
+// ROM set, and beside settings.ini), with a soundtrack.ini naming each song's file. Empty, and `note` saying why, when
+// they are not there and no image had them.
+std::string Port::DreamcastFolder(std::string &note) {
+    if (opt.settingsPath.empty()) {
+        return "";
+    }
+    const std::filesystem::path dir = TextPath(opt.settingsPath).parent_path() / "dreamcast";
+    std::vector<std::string> files;
+    std::string ini = "; Made by the custom soundtrack's \"Dreamcast arranged\": each song and its file, from the Dreamcast disc\n";
+    bool all = true;
+    std::error_code error;
+    for (const cps3recomp::Game::DiscSong &one : TheGame().dreamcastMusic) {
+        const std::string name = std::filesystem::path(one.file).filename().string();
+        if (std::find(files.begin(), files.end(), one.file) == files.end()) {
+            files.push_back(one.file);
+            all = all && std::filesystem::exists(dir / name, error);
+        }
+        ini += std::string("[") + one.song + "]\nfile = " + name + "\n";
+    }
+    if (!all) {
+        std::vector<std::string> places = {SoundtrackFolder()};
+        places.push_back(PathText(TextPath(RomPath()).parent_path()));
+        places.push_back(PathText(TextPath(opt.settingsPath).parent_path()));
+        std::string why = "none there";
+        for (const std::string &place : places) {
+            for (const std::string &image : DiscImagesIn(place)) {
+                std::string error_;
+                if (CopyFromDisc(image, files, PathText(dir), error_)) {
+                    fprintf(stderr, "dreamcast: the music copied from %s\n", image.c_str());
+                    all = true;
+                    break;
+                }
+                fprintf(stderr, "dreamcast: %s: %s\n", image.c_str(), error_.c_str());
+                why = error_;
+            }
+            if (all) {
+                break;
+            }
+        }
+        if (!all) {
+            note = std::string("No Dreamcast disc image (") + TheGame().dreamcastDisc + ") beside the ROM set: the board's music.";
+            fprintf(stderr, "dreamcast: no disc image with the music (%s); looked beside %s\n", why.c_str(), RomPath().c_str());
+            return "";
+        }
+    }
+    std::vector<uint8_t> have;
+    if (!ReadFile(PathText(dir / "soundtrack.ini"), have) || std::string(have.begin(), have.end()) != ini) {
+        WriteFile(PathText(dir / "soundtrack.ini"), ini.data(), ini.size());
+    }
+    return PathText(dir);
+}
+
 // The feature switched on or off (in the menu, or at the start): the folder looked in again
 void Port::SoundtrackFollow() {
     const int value = TheGame().songCount ? FeatureValue("custom_soundtrack") : 0;
@@ -415,6 +478,22 @@ void Port::SoundtrackFollow() {
     if (!soundtrackOn) {
         machine->soundtrack.Replace({});
         machine->soundtrack.state.song = -1; // (the board's music again, at once)
+        return;
+    }
+    if (value == 3) {
+        std::string note;
+        const std::string folder = DreamcastFolder(note);
+        if (folder.empty()) {
+            menu.Note(note);
+            soundtrackOn = false;
+            machine->soundtrack.Replace({});
+            machine->soundtrack.state.song = -1;
+            return;
+        }
+        const int found = soundtrack.Open(folder, machine->soundtrack, false);
+        if (opt.stats || getenv("CPS3RECOMP_SOUNDTRACK_LOG")) {
+            fprintf(stderr, "soundtrack: %d songs from the Dreamcast's, %s\n", found, folder.c_str());
+        }
         return;
     }
     const std::string folder = SoundtrackFolder();

@@ -130,6 +130,14 @@ struct Game {
     // songs below it are the music (0: told by their data)
     uint32_t songTable = 0, songCount = 0, musicBelow = 0;
     std::vector<Song> songs;
+    // The music of the game's Dreamcast version, for the custom soundtrack's "Dreamcast arranged" (port/dreamcast.h):
+    // each song (by its name in `songs`) and the file on that disc that plays in its place ("SOUND/03_C_NYC.ADX"); and
+    // what the player's disc image is called, for what the menu says. Empty: no such choice.
+    struct DiscSong {
+        const char *song, *file;
+    };
+    std::vector<DiscSong> dreamcastMusic;
+    const char *dreamcastDisc = "";
 };
 Game &TheGame();
 // The game's sources fill it in (games/<id>/src; runtime/no_game.cpp when a game has none)
