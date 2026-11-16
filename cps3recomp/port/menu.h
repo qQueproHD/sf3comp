@@ -87,6 +87,13 @@ public:
     void Draw(uint32_t *pixels, int width, int height) const {
         m_menu.Draw(pixels, width, height);
     }
+    // The rows in small letters, close together, for a screen of few lines (the Arcade monitor page's Compact menu)
+    void SetCompact(bool compact) {
+        m_menu.SetCompact(compact);
+    }
+    bool Compact() const {
+        return m_menu.Compact();
+    }
 
 private:
     static void Speeds(recomp::MenuConfig &config);

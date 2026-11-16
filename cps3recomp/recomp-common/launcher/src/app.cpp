@@ -696,13 +696,9 @@ App::App(SDL_Window* window)
         if (!remembered.empty()) {
             use_game_file(which, remembered);
         }
-        if (one.about->game_page && one.about->find_nearby && !one.checking && !one.file.usable()) {
-            // Nothing usable remembered: the port may know of one near the program
-            std::string nearby = one.about->find_nearby(base_path());
-            if (!nearby.empty()) {
-                use_game_file(which, nearby);
-            }
-        }
+        // (a file the port knows of near the program, or in the folder the download was unpacked to, is looked for
+        // once the check of a remembered one is done: frame(), which knows whether it turned out usable)
+        beside_wanted_ = beside_wanted_ || (one.about->game_page && one.about->find_beside);
     }
     find_shared();
     if (!collection_ && about_.game_page && (about_.open_on_game_page || about_.own_pages_after_game)) {
@@ -738,6 +734,7 @@ App::App(SDL_Window* window)
 }
 
 App::~App() {
+    stopping_ = true;  // (a look in the folder the download was unpacked to ends after the game it is on)
     for (auto& one : slots_) {
         if (one->checker.joinable()) {
             one->checker.join();
@@ -745,6 +742,9 @@ App::~App() {
     }
     if (finder_.joinable()) {
         finder_.join();
+    }
+    if (beside_.joinable()) {
+        beside_.join();
     }
 }
 
@@ -764,14 +764,15 @@ bool App::busy() const {
         return true;
     }
 #endif
-    return finding_ || any_running();
+    return finding_ || beside_running_ || any_running();
 }
 
 bool App::ready_for_keys() const {
     if (!collection_) {
         return !busy();
     }
-    return !finding_ && std::none_of(slots_.begin(), slots_.end(), [](const auto& one) { return one->checking.load(); });
+    return !finding_ && !beside_running_ &&
+           std::none_of(slots_.begin(), slots_.end(), [](const auto& one) { return one->checking.load(); });
 }
 
 bool App::any_running() const {
@@ -1337,6 +1338,47 @@ void App::use_game_file(size_t which, const std::string& path) {
     });
 }
 
+// The game's file forgotten (Clear): none chosen, as before one was, until another is chosen or dropped. The file
+// itself is left where it is. What is found near the program or beside the download is looked for once a start, so
+// not again now.
+void App::clear_game_file(size_t which) {
+    Slot& one = *slots_[which];
+    if (one.checking) {
+        return;
+    }
+    if (one.checker.joinable()) {
+        one.checker.join();
+    }
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        one.file_path.clear();
+        one.file = FileCheck{};
+    }
+    prefs_.set(one.file_section, one.about->file_key, "");
+    prefs_.save();
+}
+
+// A file the folder the download was unpacked to had for a game (Description::find_beside), its check already done
+// on that thread: it becomes the game's unless the player chose one meanwhile, or the game's is usable. On this
+// thread, so that launcher.ini is written by one thread only.
+void App::adopt_file(size_t which, const std::string& path, const launcher::FileCheck& file) {
+    Slot& one = *slots_[which];
+    if (one.checking) {
+        return;  // (a file being checked is the player's: theirs stays)
+    }
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (!one.file_path.empty() && one.file.usable()) {
+            return;
+        }
+        one.file_path = path;
+        one.file = file;
+    }
+    // Remember where it is; the file itself is only ever read.
+    prefs_.set(one.file_section, one.about->file_key, path);
+    prefs_.save();
+}
+
 // A collection's: the file or folder dropped or chosen, for whichever of the games it is. A folder is looked in
 // for each game's file (its description's candidates); the folder itself may be one game's. On a thread (a
 // check may read a large file); frame() takes what was found.
@@ -1378,6 +1420,68 @@ void App::find_in(const std::string& path) {
             found_ready_ = true;
         }
         finding_ = false;
+        wake();
+    });
+}
+
+// The folder the download was unpacked to (folders.h: the app's own on macOS, the AppImage's), looked in for the
+// games that have no usable file: what each game's description says may be there (Description::find_beside), tried
+// in turn with the game's own check, so that a file it says is good is one Play will start. One thread for all of
+// them, and one read of each file. frame() takes what it found.
+void App::look_beside() {
+    if (beside_started_) {
+        return;
+    }
+    if (beside_.joinable()) {
+        beside_.join();
+    }
+    beside_started_ = true;
+    const std::filesystem::path install = recomp::InstallFolder(program_folder_);
+    std::vector<std::pair<size_t, const launcher::Description*>> games;
+    for (size_t which = 0; which < slots_.size(); which++) {
+        Slot& one = *slots_[which];
+        if (!one.about->game_page || !one.about->find_beside || !one.has_program()) {
+            continue;
+        }
+        bool usable = false;
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            usable = !one.file_path.empty() && one.file.usable();
+        }
+        if (!usable) {
+            games.push_back({which, one.about});
+        }
+    }
+    if (games.empty()) {
+        return;
+    }
+    beside_running_ = true;
+    beside_ = std::thread([this, install, games] {
+        std::vector<FoundBeside> found;
+        for (const auto& [which, about] : games) {
+            if (stopping_) {
+                break;
+            }
+            for (const std::filesystem::path& one : about->find_beside(install)) {
+                if (stopping_) {
+                    break;
+                }
+                std::error_code error;
+                if (!std::filesystem::is_regular_file(one, error)) {
+                    continue;
+                }
+                launcher::FileCheck file = about->check(one.u8string());
+                if (file.usable()) {
+                    found.push_back({which, one.u8string(), std::move(file)});
+                    break;
+                }
+            }
+        }
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            beside_found_ = std::move(found);
+            beside_ready_ = true;
+        }
         wake();
     });
 }
@@ -1604,6 +1708,8 @@ void App::frame() {
     int picked_choice = -1;
     std::vector<std::pair<size_t, std::string>> found;
     bool found_ready = false;
+    std::vector<FoundBeside> beside;
+    bool beside_ready = false;
     {
         std::lock_guard<std::mutex> lock(mutex_);
         picked.swap(picked_);
@@ -1615,6 +1721,9 @@ void App::frame() {
         found.swap(found_);
         found_ready = found_ready_;
         found_ready_ = false;
+        beside.swap(beside_found_);
+        beside_ready = beside_ready_;
+        beside_ready_ = false;
     }
     if (!picked.empty() && picked_choice >= 0) {
         set_folder_choice(picked_for_, picked_choice, picked);
@@ -1642,6 +1751,39 @@ void App::frame() {
             }
             find_message_ = TrFormat("Found {} ({} of {}).", {names, std::to_string(found.size()), std::to_string(here)});
         }
+    }
+    // A file the folder the download was unpacked to had for a game that has none: its check was the game's own
+    if (beside_ready) {
+        beside_running_ = false;
+        for (const FoundBeside& one : beside) {
+            adopt_file(one.which, one.path, one.file);
+        }
+    }
+    // A game whose file was remembered and is not one it can play: the port may know of one near the program (a
+    // build inside the source tree), and then of one in the folder the download was unpacked to. Both are looked
+    // for once, when no check is going on, so that the answer is about the file the game will have.
+    for (size_t which = 0; which < slots_.size(); which++) {
+        Slot& one = *slots_[which];
+        if (!one.about->game_page || !one.about->find_nearby || one.nearby_tried || one.checking) {
+            continue;
+        }
+        bool usable = false;
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            usable = !one.file_path.empty() && one.file.usable();
+        }
+        if (usable) {
+            continue;
+        }
+        one.nearby_tried = true;
+        std::string nearby = one.about->find_nearby(program_folder_);
+        if (!nearby.empty()) {
+            use_game_file(which, nearby);
+        }
+    }
+    if (beside_wanted_ && !beside_started_ &&
+        std::none_of(slots_.begin(), slots_.end(), [](const auto& one) { return one->checking.load(); })) {
+        look_beside();
     }
     // A game that ended may have changed its settings.ini (its menu's features): what it left is what is shown
     // and kept
@@ -2105,7 +2247,14 @@ void App::file_card(size_t which, float width) {
         status = file.message;
     }
     ImVec2 row_top = ImGui::GetCursorScreenPos();
-    row(width, shown.c_str(), status.c_str(), 130.0f, 36.0f, [&] {
+    const bool clearable = !one.file_path.empty() && !one.checking && !one.game.running();
+    row(width, shown.c_str(), status.c_str(), clearable ? 230.0f : 130.0f, 36.0f, [&] {
+        if (clearable) {
+            if (ui::button("Clear", Kind::Secondary, 90.0f)) {
+                clear_game_file(which);
+            }
+            ImGui::SameLine(0.0f, px(10));
+        }
         if (ui::button("Choose…", Kind::Secondary, 130.0f, !one.checking)) {
             // (the system's file dialog wants a mouse or a keyboard)
             if (ui::gamepad_in_use()) {
@@ -3397,11 +3546,18 @@ void App::library_page(float width) {
         ImGui::PushID(static_cast<int>(which));
         ImVec2 row_top = ImGui::GetCursorScreenPos();
         // (Play first, so that the ring coming into the row from the left is on it)
-        row(width, one.name.c_str(), status.c_str(), 230.0f, 36.0f, [&] {
+        const bool clearable = !one.file_path.empty() && !one.checking && !one.game.running();
+        row(width, one.name.c_str(), status.c_str(), clearable ? 330.0f : 230.0f, 36.0f, [&] {
             if (ui::button(one.game.running() ? "Playing…" : "Play", Kind::Primary, 110.0f, usable && !one.game.running())) {
                 play(which);
             }
             ImGui::SameLine(0.0f, px(10));
+            if (clearable) {
+                if (ui::button("Clear", Kind::Secondary, 90.0f)) {
+                    clear_game_file(which);
+                }
+                ImGui::SameLine(0.0f, px(10));
+            }
             if (ui::button("Choose…", Kind::Secondary, 110.0f, !one.checking)) {
                 if (ui::gamepad_in_use()) {
                     open_browser(which, false);

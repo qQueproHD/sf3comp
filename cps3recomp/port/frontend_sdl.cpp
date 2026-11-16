@@ -51,6 +51,67 @@ namespace {
 
     constexpr int kDead = 16000; // how far a stick or a trigger must go to count
 
+#ifndef __ANDROID__ // (a phone: its one screen, full)
+    // The Display page's screen (DisplayScreen): the main display, or the others in the order SDL lists them; the main
+    // one where the one chosen is not connected (issue #15)
+    SDL_DisplayID ChosenDisplay() {
+        const SDL_DisplayID primary = SDL_GetPrimaryDisplay();
+        SDL_DisplayID chosen = primary;
+        int count = 0, other = 0;
+        SDL_DisplayID *all = SDL_GetDisplays(&count);
+        for (int i = 0; all && i < count; i++) {
+            if (all[i] != primary && ++other == DisplayScreen()) {
+                chosen = all[i];
+            }
+        }
+        SDL_free(all);
+        return chosen;
+    }
+
+    // The screen's mode of exactly the board's 384 x 224 (an arcade monitor's, from CRT Emudriver or a custom
+    // resolution), at the refresh nearest the board's 59.6 Hz and no further than 5 Hz from it; false: it has none.
+    // Never another size or rate: a monitor of 15 kHz can be harmed by a mode it cannot take (issue #15)
+    bool ArcadeMode(SDL_DisplayID display, SDL_DisplayMode &found) {
+        int count = 0;
+        SDL_DisplayMode **modes = SDL_GetFullscreenDisplayModes(display, &count);
+        bool any = false;
+        for (int i = 0; modes && i < count; i++) {
+            const SDL_DisplayMode &mode = *modes[i];
+            const float density = mode.pixel_density > 0 ? mode.pixel_density : 1.0f;
+            const bool size = std::lround(mode.w * density) == Video::kWidth && std::lround(mode.h * density) == Video::kHeight;
+            const float off = std::fabs(mode.refresh_rate - static_cast<float>(Machine::kFramesPerSecond));
+            if (size && off <= 5.0f && (!any || off < std::fabs(found.refresh_rate - static_cast<float>(Machine::kFramesPerSecond)))) {
+                found = mode;
+                any = true;
+            }
+        }
+        SDL_free(modes);
+        return any;
+    }
+
+    // The window's full screen as the Arcade monitor page says (ArcadeResolution): the board's 384 x 224 on the chosen
+    // screen where it has that mode; else the desktop's own. Kept by the window for F11 too
+    void SetFullscreenMode(SDL_Window *window) {
+        SDL_DisplayMode mode;
+        if (ArcadeResolution() && ArcadeMode(ChosenDisplay(), mode)) {
+            if (!SDL_SetWindowFullscreenMode(window, &mode)) {
+                fprintf(stderr, "full screen %dx%d at %.2f Hz: %s\n", mode.w, mode.h, mode.refresh_rate, SDL_GetError());
+            }
+            return;
+        }
+        if (ArcadeResolution()) {
+            fprintf(stderr, "full screen: the screen has no %dx%d mode near %.1f Hz; full screen stays at its own resolution\n",
+                    Video::kWidth, Video::kHeight, Machine::kFramesPerSecond);
+        }
+        SDL_SetWindowFullscreenMode(window, nullptr);
+    }
+    // The window in the middle of the chosen screen
+    void CentreOnScreen(SDL_Window *window) {
+        const SDL_DisplayID display = ChosenDisplay();
+        SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED_DISPLAY(display), SDL_WINDOWPOS_CENTERED_DISPLAY(display));
+    }
+#endif
+
     bool KeyBound(SDL_Scancode key) {
         for (int player = 0; player < Players(); player++) {
             for (int action = 0; action < Table().table.count; action++) {
@@ -213,15 +274,34 @@ int RunWindowed(Port &port) {
         if (at) {
             SDL_SetNumberProperty(properties, SDL_PROP_WINDOW_CREATE_X_NUMBER, at->x);
             SDL_SetNumberProperty(properties, SDL_PROP_WINDOW_CREATE_Y_NUMBER, at->y);
+        } else {
+#ifndef __ANDROID__
+            // (on the Display page's screen)
+            const SDL_DisplayID display = ChosenDisplay();
+            SDL_SetNumberProperty(properties, SDL_PROP_WINDOW_CREATE_X_NUMBER, SDL_WINDOWPOS_CENTERED_DISPLAY(display));
+            SDL_SetNumberProperty(properties, SDL_PROP_WINDOW_CREATE_Y_NUMBER, SDL_WINDOWPOS_CENTERED_DISPLAY(display));
+#endif
         }
 #ifdef __ANDROID__
         fullscreen = true; // (a phone's whole screen, its bars hidden)
+        const bool fullscreenNow = true;
+#else
+        // (the arcade's resolution: made a window, given its mode, then made full screen)
+        const bool fullscreenNow = fullscreen && !ArcadeResolution();
 #endif
         SDL_SetNumberProperty(properties, SDL_PROP_WINDOW_CREATE_FLAGS_NUMBER,
-                              SDL_WINDOW_RESIZABLE | (fullscreen ? SDL_WINDOW_FULLSCREEN : 0) | (at && at->maximized ? SDL_WINDOW_MAXIMIZED : 0) |
+                              SDL_WINDOW_RESIZABLE | (fullscreenNow ? SDL_WINDOW_FULLSCREEN : 0) | (at && at->maximized ? SDL_WINDOW_MAXIMIZED : 0) |
                                   (opengl ? SDL_WINDOW_OPENGL : 0) | (getenv("CPS3RECOMP_HIDDEN_WINDOW") ? SDL_WINDOW_HIDDEN : 0)); // (hidden: for tests)
         SDL_Window *made = SDL_CreateWindowWithProperties(properties);
         SDL_DestroyProperties(properties);
+#ifndef __ANDROID__
+        if (made) {
+            SetFullscreenMode(made);
+            if (fullscreen && !fullscreenNow) {
+                SDL_SetWindowFullscreen(made, true);
+            }
+        }
+#endif
         // (in front: on macOS a program started by one that is not, as the launcher is behind a Multi game run's
         // last game, opens behind the other windows)
         if (made && !getenv("CPS3RECOMP_HIDDEN_WINDOW")) {
@@ -441,8 +521,10 @@ int RunWindowed(Port &port) {
     // together (the game is left from its "Quit game"). While it is open the game stands still and the
     // controls work the menu; buttons held as it closes do not reach the game until let go.
     std::vector<uint32_t> menuBase, menuPicture, shown, overlay;
-    uint64_t menuVersion = 0, overlayVersion = 0; // (NativeGpu::Overlay's)
+    uint64_t menuVersion = 0, overlayVersion = 0, menuShotVersion = 0; // (NativeGpu::Overlay's)
     uint32_t menuWidth = 0, menuHeight = 0;
+    // (the menu's picture's size where it is drawn on the screen's own pixels: Port::MenuPicture; 0: as usual)
+    int menuWantWidth = 0, menuWantHeight = 0;
     bool menuDirty = false;
     uint16_t previousPad = 0, heldAtClose = 0;
     recomp::MenuRepeat menuRepeat; // (the arrows held go on through the rows and the choices)
@@ -469,7 +551,7 @@ int RunWindowed(Port &port) {
             // made for it; else the CPU's)
             menuBase.clear();
             if (!port.machine->GpuFrame() || !presenter.CanShowNative()) {
-                port.MenuPicture(menuBase, menuWidth, menuHeight);
+                port.MenuPicture(menuBase, menuWidth, menuHeight, menuWantWidth, menuWantHeight);
             }
             port.menu.Open(true);
             menuDirty = true;
@@ -855,6 +937,30 @@ int RunWindowed(Port &port) {
             }
         }
         followShader();
+#ifndef __ANDROID__
+        // The Display page's screen or full screen mode changed: the window to that screen, full screen in that mode
+        if (window) {
+            static int shownScreen = DisplayScreen();
+            static bool shownArcade = ArcadeResolution();
+            if (DisplayScreen() != shownScreen || ArcadeResolution() != shownArcade) {
+                const bool full = SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN;
+                if (full) {
+                    SDL_SetWindowFullscreen(window, false);
+                    SDL_SyncWindow(window);
+                }
+                if (DisplayScreen() != shownScreen) {
+                    CentreOnScreen(window);
+                }
+                SetFullscreenMode(window);
+                if (full) {
+                    SDL_SetWindowFullscreen(window, true);
+                }
+                SDL_SyncWindow(window);
+                shownScreen = DisplayScreen();
+                shownArcade = ArcadeResolution();
+            }
+        }
+#endif
         presenter.SetVsync(FeatureOn("display_vsync")); // (the Display page's VSync, as changed in the menu)
         port.gpuPresent = presenter.CanShowNative(); // (the frames made for the GPU from here: Machine::gpuPicture)
         if (port.quit) {
@@ -864,7 +970,28 @@ int RunWindowed(Port &port) {
         int width = 0, height = 0;
         presenter.Size(width, height);
         presenter.SetScaling(DisplayScaling());
-        const SDL_FRect where = FitPicture(width, height, port.ShownWidth(), Video::kHeight, DisplayShape(), DisplayScaling());
+        // (full screen in the arcade's resolution: the picture fills the screen's mode, whose shape the monitor gives it)
+        const bool arcadeScreen = window && (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) && SDL_GetWindowFullscreenMode(window);
+        const SDL_FRect where = FitPicture(width, height, port.ShownWidth(), Video::kHeight, arcadeScreen ? Shape::Fill : DisplayShape(), DisplayScaling());
+        // (the menu compact where the Arcade monitor page asks for it, or on the arcade monitor itself; drawn again when
+        // that changes)
+        if (const bool compact = CompactMenuChosen() || arcadeScreen; compact != port.menu.Compact()) {
+            port.menu.SetCompact(compact);
+            menuBase.clear();
+            menuDirty = true;
+        }
+        // (the picture shown smaller than the menu's usual 672 lines (a small window, an arcade monitor): the menu drawn
+        // on the screen's own pixels there, so that its letters are not shrunk; drawn again when that changes)
+        {
+            const int wantHeight = static_cast<int>(std::lround(where.h)), wantWidth = static_cast<int>(std::lround(where.w));
+            const bool own = wantHeight >= Video::kHeight && wantHeight < 3 * Video::kHeight && wantWidth < NativeGpu::kOverlayWidth - 1;
+            if ((own ? wantWidth : 0) != menuWantWidth || (own ? wantHeight : 0) != menuWantHeight) {
+                menuWantWidth = own ? wantWidth : 0;
+                menuWantHeight = own ? wantHeight : 0;
+                menuBase.clear(); // (made again at the new size where the CPU's picture is the menu's)
+                menuDirty = true;
+            }
+        }
         touch.Layout(width, height, where);
         int touchWidth = 0, touchHeight = 0;
         if (touch.TakePicture(touchPicture, touchWidth, touchHeight)) {
@@ -880,22 +1007,36 @@ int RunWindowed(Port &port) {
             if (gpuFrame && presenter.CanShowNative()) {
                 if (menuDirty) {
                     menuDirty = false;
-                    port.MenuOverlay(menuPicture, menuWidth, menuHeight);
+                    port.MenuOverlay(menuPicture, menuWidth, menuHeight, menuWantWidth, menuWantHeight);
                     menuVersion++;
                 }
                 const NativeGpu::Overlay over = {menuPicture.data(), static_cast<int>(menuWidth), static_cast<int>(menuHeight), false, menuVersion};
                 presenter.ShowNative(*gpuFrame, port.machine->GpuVideo(), port.machine->GpuText(), where, &over);
             } else {
                 if (menuBase.empty()) {
-                    port.MenuPicture(menuBase, menuWidth, menuHeight); // (the GPU's frame gone meanwhile)
+                    port.MenuPicture(menuBase, menuWidth, menuHeight, menuWantWidth, menuWantHeight); // (the GPU's frame gone meanwhile, or the size changed)
                     menuDirty = true;
                 }
                 if (menuDirty) {
                     menuDirty = false;
                     menuPicture = menuBase;
                     port.menu.Draw(menuPicture.data(), static_cast<int>(menuWidth), static_cast<int>(menuHeight));
+                    menuVersion++;
                 }
                 presenter.Show(menuPicture.data(), static_cast<int>(menuWidth), static_cast<int>(menuHeight), where, nullptr, false);
+            }
+            // (the checks, CPS3RECOMP_WINDOW_SHOT: the menu as the window shows it, to PREFIXmenu<frame>.png)
+            if (static const char *menuShot = getenv("CPS3RECOMP_WINDOW_SHOT"); menuShot && menuVersion != menuShotVersion) {
+                std::vector<uint32_t> pixels;
+                int w = 0, h = 0;
+                presenter.keepShown = true;
+                if (presenter.ReadShown(pixels, w, h)) {
+                    const std::string spec = menuShot;
+                    char path[600];
+                    snprintf(path, sizeof(path), "%smenu%06llu.png", spec.substr(0, spec.rfind(':')).c_str(), static_cast<unsigned long long>(port.frame));
+                    WritePng(path, pixels.data(), static_cast<uint32_t>(w), static_cast<uint32_t>(h));
+                    menuShotVersion = menuVersion;
+                }
             }
             SDL_Delay(8);
             nextFrame = SDL_GetTicksNS();

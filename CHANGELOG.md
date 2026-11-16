@@ -3,10 +3,20 @@
 ## Unreleased
 
 - **Widescreen in New Generation and 2nd Impact is the board's own**: the 16:9 mode both games have (2nd Impact's
-  test menu calls it Screen mode; New Generation's leaves the row out). The picture is 495 columns, the life bars, faces and gauges are laid out at
-  the corners, and the stages' ends are the game's own, so the corners are no longer reached sooner and there are no
-  invisible walls to choose. Switched in the in-game menu, the game starts again, as the board does when the setting
-  changes. 3rd Strike keeps its widescreen: its own wide mode leaves the panel laid out for 4:3. (Issue #18)
+  test menu calls it Screen mode; New Generation's leaves the row out). The picture is 495 columns, the life bars,
+  faces and gauges are laid out at the corners, and the stages' ends are the game's own, so the corners are no longer
+  reached sooner and there are no invisible walls to choose. Switched in the in-game menu, the game starts again, as
+  the board does when the setting changes. 3rd Strike keeps its widescreen: its own wide mode leaves the panel laid
+  out for 4:3. (Issue #18)
+- **Arcade monitor** (its own section on the launcher's Features page; in the menu, under Display): **Full screen
+  resolution → 384 x 224** switches the screen to the board's own resolution (an arcade monitor's modeline from CRT
+  Emudriver, or a custom resolution) and fills it pixel for pixel. Only that exact mode is used, at the refresh nearest
+  59.6 Hz; if the screen doesn't list it, full screen stays at the desktop's resolution. **Screen** chooses which
+  monitor the game opens and goes full screen on. Both are set on the launcher: the in-game menu can only turn them back
+  off, so a wrong mode is never sent to the monitor while playing. **Compact menu**: the in-game menu in small letters
+  with its rows close together, about ten rows at 224 lines with none running into the next (on by itself at
+  384 x 224). The menu is also drawn on the screen's own pixels wherever the picture is under 672 lines, so its
+  letters are no longer shrunk. (Issue #15)
 - **Android**: SF3comp-android.apk, the launcher and every game in one app for 64-bit ARM phones and tablets
   (Android 9 and later), as CPS-2 Recomp's. Add the ROM sets from the phone with the system's picker (they are copied
   into the app's folder); the screen has touch controls until a gamepad is used, Back or the screen's Menu button
