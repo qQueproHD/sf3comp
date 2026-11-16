@@ -168,7 +168,7 @@ int SoundtrackPlayer::Open(const std::string &folder, Soundtrack &tap, bool shuf
     std::vector<std::string> all;
     for (std::filesystem::directory_iterator each(dir, error); !error && each != std::filesystem::directory_iterator(); each.increment(error)) {
         const std::string ending = Lower(PathText(each->path().extension()));
-        if (ending == ".ogg" || ending == ".oga" || ending == ".flac" || ending == ".mp3" || ending == ".wav") {
+        if (ending == ".ogg" || ending == ".oga" || ending == ".flac" || ending == ".mp3" || ending == ".wav" || ending == ".adx") {
             stems.emplace(Lower(PathText(each->path().stem())), PathText(each->path()));
             all.push_back(PathText(each->path()));
         }
@@ -264,7 +264,7 @@ void SoundtrackPlayer::Start(int32_t song) {
     const File &file = m_files[song];
     m_decoder = OpenDecoder(file.path);
     if (!m_decoder) {
-        fprintf(stderr, "soundtrack: %s is not a sound file this reads (Ogg Vorbis, FLAC, MP3, WAV)\n", file.path.c_str());
+        fprintf(stderr, "soundtrack: %s is not a sound file this reads (Ogg Vorbis, FLAC, MP3, WAV, ADX)\n", file.path.c_str());
         return;
     }
     m_rate = m_decoder->rate;
@@ -383,7 +383,7 @@ void SoundtrackPlayer::NextTrack() {
         }
         m_decoder = OpenDecoder(m_playlist[m_order[m_track]]);
         if (!m_decoder) {
-            fprintf(stderr, "soundtrack: %s is not a sound file this reads (Ogg Vorbis, FLAC, MP3, WAV)\n", m_playlist[m_order[m_track]].c_str());
+            fprintf(stderr, "soundtrack: %s is not a sound file this reads (Ogg Vorbis, FLAC, MP3, WAV, ADX)\n", m_playlist[m_order[m_track]].c_str());
         }
     }
     m_rate = m_decoder ? m_decoder->rate : m_rate;
