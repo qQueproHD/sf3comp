@@ -81,6 +81,7 @@ add_notices() {
     inter="$(grep -E '^FETCHCONTENT_SOURCE_DIR_INTER' "$2/CMakeCache.txt" 2>/dev/null | cut -d= -f2)"
     cp "${imgui:-$2/_deps/imgui-src}/LICENSE.txt" "$1/licenses/DearImGui.txt"
     cp "$(find "${inter:-$2/_deps/inter-src}" -iname 'LICENSE*' | head -1)" "$1/licenses/Inter-OFL.txt"
+    cp "$ROOT/cps3recomp/recomp-common/launcher/flags-LICENSE.txt" "$1/licenses/flag-icons-MIT.txt"
     { echo "stb_vorbis (cps3recomp/third_party/stb_vorbis.c):"; sed -n '/^ALTERNATIVE A - MIT License/,$p' "$ROOT/cps3recomp/third_party/stb_vorbis.c"
       for f in dr_flac dr_mp3 dr_wav; do echo; echo "$f (cps3recomp/third_party/$f.h):"; sed -n '/^ALTERNATIVE 1 - Public Domain/,$p' "$ROOT/cps3recomp/third_party/$f.h"; done
     } > "$1/licenses/sound-decoders.txt"
