@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **Arcade monitor** (its own section on the launcher's Features page; in the menu, under Display): **Full screen
+  resolution → 384 x 224** switches the screen to the board's own resolution (an arcade monitor's modeline from CRT
+  Emudriver, or a custom resolution) and fills it pixel for pixel. Only that exact mode is used, at the refresh nearest
+  59.6 Hz; if the screen doesn't list it, full screen stays at the desktop's resolution. **Screen** chooses which
+  monitor the game opens and goes full screen on. Both are set on the launcher: the in-game menu can only turn them back
+  off, so a wrong mode is never sent to the monitor while playing. **Compact menu**: the in-game menu in small letters
+  with its rows close together, about ten rows at 224 lines with none running into the next (on by itself at
+  384 x 224). The menu is also drawn on the screen's own pixels wherever the picture is under 672 lines, so its
+  letters are no longer shrunk. (Issue #15)
 - **Android**: SF3comp-android.apk, the launcher and every game in one app for 64-bit ARM phones and tablets
   (Android 9 and later), as CPS-2 Recomp's. Add the ROM sets from the phone with the system's picker (they are copied
   into the app's folder); the screen has touch controls until a gamepad is used, Back or the screen's Menu button
