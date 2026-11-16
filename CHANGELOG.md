@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0-beta.1
 
 - **Country flags in the waiting room**: choose **Your country** on the Online page (none unless you do) and the
   others in the waiting room see your flag and country beside your name, as you see theirs. Needs the online service
