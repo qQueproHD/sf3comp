@@ -27,11 +27,12 @@ them and attaches them to the draft that the tag opens.
 
    ```sh
    git status --short            # must print nothing: build exactly what was tagged
-   bash cps3recomp/tools/translate.sh path/to/sfiii3nr1.zip      # and the other two games' (docs/BUILDING.md)
+   bash cps3recomp/tools/translate.sh path/to/sfiii3nr1.zip 0    # and the other three's: GAME=sfiiin, sfiii2n and
+                                                                  # sfiii3n (docs/BUILDING.md)
    tools/release/all.sh          # audit, then macOS, Linux x86_64, Windows, Android, then SHA256SUMS.txt
    ```
 
-   Each download is the collection: `sf3comp-launcher` and the programs `sfiii3`, `sfiiin` and `sfiii2n` (on macOS
+   Each download is the collection: `sf3comp-launcher` and the programs `sfiii3`, `sfiii3n`, `sfiiin` and `sfiii2n` (on macOS
    inside `SF3comp.app`; on Android, libraries in one APK, signed with the release key: docs/BUILDING.md). The scripts refuse to start if a game's translated code is missing.
 
    Each script refuses to pack an archive that holds game data or a personal path, or lacks a licence
