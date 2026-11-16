@@ -10,3 +10,4 @@
 __pycache__/
 /cps3recomp/build/
 /.claude/
+!cps3recomp/recomp-common/launcher/flags.png

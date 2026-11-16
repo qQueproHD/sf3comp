@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Country flags in the waiting room**: choose **Your country** on the Online page (none unless you do) and the
+  others in the waiting room see your flag and country beside your name, as you see theirs. Needs the online service
+  deployed with it (`online/`); an older service just doesn't pass countries on.
 - **Input delay for hosting**: the launcher's Online page has an **Input delay** choice (0 to 8 frames, 2 unless chosen)
   under Host, for the matches you host and the invitations you send; the other player gets the same.
 - **Arcade monitor** (its own section on the launcher's Features page; in the menu, under Display): **Full screen

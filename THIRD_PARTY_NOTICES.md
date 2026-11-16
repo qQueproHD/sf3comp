@@ -60,6 +60,13 @@ made by `cps3recomp/tools/sync-common.sh` and never changed here; its launcher d
 
 `cps3recomp/third_party/librashader.h` is librashader's C header (MIT).
 
+### Country flags (MIT)
+
+`cps3recomp/recomp-common/launcher/flags.png` (compiled into the launcher) holds every ISO country's flag from
+[flag-icons](https://github.com/lipis/flag-icons) 7.2.3, Copyright (c) 2013 Panayiotis Lipiridis, MIT License;
+`cps3recomp/recomp-common/launcher/src/countries.h` has their names from it. A release carries the license as
+`licenses/flag-icons-MIT.txt`.
+
 ### jtcores' SH7604 model (GPL-3.0-or-later)
 
 The arcade timing feature's rules (`cps3recomp/machine/bus.h`, `cps3recomp/machine/sh2_pipeline.h`) are the SH7604's

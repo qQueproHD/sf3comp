@@ -25,7 +25,8 @@ check "nothing made from a game (generated code, block databases, listings, memo
 check "block lists hold addresses and lengths only, no code" "$(grep -E '(^|/)block_addresses\.txt$' "$LIST" | while read -r f; do grep -nvE '^(#.*|[0-9A-F]{8} [0-9]{1,3})$' "$f" | sed "s|^|$f:|"; done)"
 # (games/shared: sources several games build, each naming them in its game.cfg's shared_sources)
 check "every game has its game.cfg" "$(grep -E '^games/[^/]+/' "$LIST" | cut -d/ -f2 | sort -u | grep -vx shared | while read -r g; do [ -f "games/$g/game.cfg" ] || echo "games/$g"; done)"
-check "no pictures but the README's, no sound or video" "$(grep -iE '\.(png|jpe?g|gif|bmp|ppm|webp|mp4|mov|webm|wav|ogg|mp3|flac)$' "$LIST" | grep -vE '^docs/screenshots/[a-z0-9-]+\.(png|jpg)$' || true)"
+# (and the launcher's country flags, recomp-common's, from flag-icons: THIRD_PARTY_NOTICES.md)
+check "no pictures but the README's, no sound or video" "$(grep -iE '\.(png|jpe?g|gif|bmp|ppm|webp|mp4|mov|webm|wav|ogg|mp3|flac)$' "$LIST" | grep -vE '^docs/screenshots/[a-z0-9-]+\.(png|jpg)$' | grep -vx 'cps3recomp/recomp-common/launcher/flags\.png' || true)"
 # (the published checksums of the libraries the builds download, and the commits they are pinned to, are not keys;
 # a ROM file's CRC in game.cfg is 8 digits, a fact about the file; nor is the commit a fetched file is pinned to)
 check "no key-like hex strings (32 digits or more)" "$(grep_files '(^|[^0-9a-fA-F.])[0-9a-fA-F]{32,}([^0-9a-fA-F]|$)' | grep -vE 'URL_HASH SHA256=[0-9a-f]{64}|SHA256=[0-9a-f]{64}|_COMMIT=[0-9a-f]{40}$|raw\.githubusercontent\.com/[^/]+/[^/]+/[0-9a-f]{40}/|^cps3recomp/recomp-common/COMMIT:|^\.github/workflows/' || true)"
