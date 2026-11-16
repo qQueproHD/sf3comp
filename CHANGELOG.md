@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Input delay for hosting**: the launcher's Online page has an **Input delay** choice (0 to 8 frames, 2 unless chosen)
+  under Host, for the matches you host and the invitations you send; the other player gets the same.
 - **Arcade monitor** (its own section on the launcher's Features page; in the menu, under Display): **Full screen
   resolution → 384 x 224** switches the screen to the board's own resolution (an arcade monitor's modeline from CRT
   Emudriver, or a custom resolution) and fills it pixel for pixel. Only that exact mode is used, at the refresh nearest
