@@ -2,15 +2,16 @@
 
 ## Unreleased
 
+## 0.2.0-beta.1
+
 - **Dreamcast arranged music** (3rd Strike; issue #28): Custom soundtrack has a fourth choice, **Dreamcast arranged**.
   With your own image of the Dreamcast 3rd Strike disc beside the ROM set (or in the soundtrack folder): a Redump .cue
   with its tracks, a .gdi, or the .zip of either, as downloaded. The first time, its arranged stage themes are copied
   out (about 60 MB, a few seconds) into a dreamcast folder beside the settings, and from then on they play in place of
   the board's stage music, each looping as it does on the Dreamcast. The other music stays the board's.
 - The custom soundtrack plays **ADX** files too (CRI's ADPCM, with their own loop points).
-
-## 0.2.0-beta.1
-
+- **Held arrows in the in-game menu**: holding Up, Down, Left or Right goes on through the rows and choices, faster
+  after a second (a long choice, the stages say, no longer needs a press for each).
 - **Country flags in the waiting room**: choose **Your country** on the Online page (none unless you do) and the
   others in the waiting room see your flag and country beside your name, as you see theirs. Needs the online service
   deployed with it (`online/`); an older service just doesn't pass countries on.
