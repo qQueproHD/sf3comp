@@ -5,6 +5,21 @@
 - **4rd Strike** (4rd Arrange Edition 2013, `sfiii4n`; issues #9, #23) as a game of its own in the launcher, with
   training mode, widescreen, online play in its own waiting room, and replays. The hack patches 990608's program in
   place (two routines and the characters' data), so it has that revision's facts and translated code.
+- **Dreamcast arranged music, fixed** (player reports): each round now has its own Dreamcast version (rounds 1, 2 and
+  3, as the Dreamcast plays them); only the round-3 version played before, for every round. And it plays at the
+  arcade music's loudness (it was about three times louder than the sound effects and the board's music). The first
+  start after updating copies the other rounds' files from the disc image, which has to be beside the ROM set still.
+- The custom soundtrack: a song in soundtrack.ini may name other files for other moments (`file2`, `file3`...), as
+  the game's sources choose them (3rd Strike: `file3` for a stage's song in round 3 and later).
+- **Bezels** (Display page; issue #8): something beside a 4:3 picture on a wider window or screen, off unless chosen.
+  With bezels the window opens 16:9 and the picture keeps its shape in the middle; full screen they fill whatever is
+  left beside it, ultrawide screens too. Black, White, four patterns drawn by the game itself (Dusk, Carbon, Neon
+  grid, Brushed metal), or **Your own**: the first .png or .bmp in a `bezels` folder beside the game's settings,
+  scaled to cover the screen with its middle in the middle. Under shaders too.
+- **Borderless full screen** (Display → **Full screen as**; issue #20): **Borderless window** makes full screen a
+  window with no edges as large as the screen instead, for what needs the game in a window (NVIDIA RTX HDR, overlays,
+  recorders, quick switching to other windows). The launcher's Full screen, F11 and Alt+Enter all follow it. Not with
+  the Arcade monitor's 384 x 224, which always takes the screen over.
 - Dreamcast arranged music: when it can't be copied, the in-game menu says why the next time it opens (which disc
   image, and what was wrong: most often its track files missing beside the .cue or .gdi), and says so when it was.
   docs/DREAMCAST_MUSIC.md no longer says guest stages play their own music with it: they play the arrangement too.

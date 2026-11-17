@@ -28,6 +28,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -70,6 +71,7 @@ private:
         double loopStart = -1, loopEnd = -1; // seconds (-1: from the file's tags, or the whole of it)
         bool once = false;                   // played once, not repeated
         int volume = 100;
+        std::map<int, std::string> variants; // (soundtrack.ini's file2, file3...: Game::songVariant)
     };
     std::vector<File> m_files; // by song number (path "": none)
     std::unique_ptr<Decoder> m_decoder;

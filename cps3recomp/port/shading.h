@@ -42,8 +42,10 @@ public:
     void Show(const uint32_t *pixels, int width, int height, const SDL_FRect &where, bool shade, const Zoomed *zoomed = nullptr);
     // Waiting for the screen's refresh to show a picture (present.h, Presenter::SetVsync)
     void SetVsync(bool on);
-    // What is drawn over the whole window after the picture (present.h, Presenter::SetOverlay); nullptr: nothing
-    void SetOverlay(const uint32_t *pixels, int width, int height);
+    // What is drawn over the whole window after the picture (kOverlay: present.h, Presenter::SetOverlay), or before it
+    // (kBackdrop: Presenter::SetBackdrop); nullptr: nothing
+    enum Layer { kOverlay, kBackdrop };
+    void SetLayer(Layer layer, const uint32_t *pixels, int width, int height);
     // For the checks (CPS3RECOMP_SHADER_SHOT): each picture shown kept, and the last one, its first row its top
     bool keepLast = false;
     bool ReadBack(std::vector<uint32_t> &pixels, int &width, int &height);
@@ -61,10 +63,14 @@ private:
     std::vector<uint32_t> m_last;
     int m_lastWidth = 0, m_lastHeight = 0;
     void Keep();
-    // (the overlay: its texture, and the program that blends it over the window)
-    uint32_t m_overlay = 0, m_overlayProgram = 0, m_overlayArray = 0;
-    int m_overlayWidth = 0, m_overlayHeight = 0;
-    void DrawOverlay(int windowWidth, int windowHeight);
+    // (the overlay and the backdrop: their textures, and the program that blends one over the window)
+    struct LayerTexture {
+        uint32_t texture = 0;
+        int width = 0, height = 0;
+    };
+    LayerTexture m_layers[2];
+    uint32_t m_overlayProgram = 0, m_overlayArray = 0;
+    void DrawLayer(Layer layer, int windowWidth, int windowHeight);
 };
 
 } // namespace port

@@ -200,6 +200,13 @@ int SoundtrackPlayer::Open(const std::string &folder, Soundtrack &tap, bool shuf
             if (own->count("volume")) {
                 file.volume = std::clamp(atoi(own->at("volume").c_str()), 0, 400);
             }
+            for (int n = 2; n <= 9; n++) {
+                const std::string key = "file" + std::to_string(n);
+                if (own->count(key)) {
+                    const std::filesystem::path named = TextPath(own->at(key));
+                    file.variants[n] = PathText(named.is_absolute() ? named : dir / named);
+                }
+            }
             if (own->count("loop")) {
                 const std::string loop = Lower(own->at("loop"));
                 const size_t dash = loop.find('-');
@@ -262,9 +269,21 @@ void SoundtrackPlayer::Start(int32_t song) {
         return;
     }
     const File &file = m_files[song];
-    m_decoder = OpenDecoder(file.path);
+    // (another of its files for now: the game's sources say which, Game::songVariant)
+    std::string path = file.path;
+    if (!file.variants.empty() && cps3recomp::TheGame().songVariant) {
+        const int variant = cps3recomp::TheGame().songVariant(static_cast<uint16_t>(song));
+        const auto found = file.variants.find(variant);
+        if (found != file.variants.end()) {
+            path = found->second;
+        }
+        if (getenv("CPS3RECOMP_SOUNDTRACK_LOG")) {
+            fprintf(stderr, "soundtrack: song %d, its file %d: %s\n", song, variant, path.c_str());
+        }
+    }
+    m_decoder = OpenDecoder(path);
     if (!m_decoder) {
-        fprintf(stderr, "soundtrack: %s is not a sound file this reads (Ogg Vorbis, FLAC, MP3, WAV, ADX)\n", file.path.c_str());
+        fprintf(stderr, "soundtrack: %s is not a sound file this reads (Ogg Vorbis, FLAC, MP3, WAV, ADX)\n", path.c_str());
         return;
     }
     m_rate = m_decoder->rate;
