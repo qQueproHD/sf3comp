@@ -18,5 +18,9 @@ prints them all with their descriptions. Online, the host's choices of the ones 
 | Display | Input lag readout |
 | Replays | Keep my matches (the Replays page lists them to watch and to play on from) |
 
+The table is the definitive version's (3rd Strike, 990512). The launcher's other games (New Generation, 2nd Impact,
+3rd Strike 990608 and 4rd Strike) have the shared part of it: free play, straight to the title, the board's settings,
+cheats, training mode and the dummy, widescreen, online play, replays, run-ahead and the input lag readout.
+
 How each part works and what it was checked against: [games/sfiii3/PROGRESS.md](../games/sfiii3/PROGRESS.md),
 [games/sfiii3/DEFINITIVE.md](../games/sfiii3/DEFINITIVE.md) (the stages), [docs/TIMING.md](TIMING.md) (arcade timing).

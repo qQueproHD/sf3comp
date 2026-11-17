@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **4rd Strike** (4rd Arrange Edition 2013, `sfiii4n`; issues #9, #23) as a game of its own in the launcher, with
+  training mode, widescreen, online play in its own waiting room, and replays. The hack patches 990608's program in
+  place (two routines and the characters' data), so it has that revision's facts and translated code.
 - Dreamcast arranged music: when it can't be copied, the in-game menu says why the next time it opens (which disc
   image, and what was wrong: most often its track files missing beside the .cue or .gdi), and says so when it was.
   docs/DREAMCAST_MUSIC.md no longer says guest stages play their own music with it: they play the arrangement too.

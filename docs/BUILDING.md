@@ -22,6 +22,8 @@ GAME=sfiiin bash cps3recomp/tools/translate.sh path/to/sfiiin.zip 0
 GAME=sfiii2n bash cps3recomp/tools/translate.sh path/to/sfiii2n.zip 0
 # and 3rd Strike's later revision (sfiii3n.zip), which a release carries as a fourth program
 GAME=sfiii3n bash cps3recomp/tools/translate.sh path/to/sfiii3n.zip 0
+# and 4rd Strike (sfiii4n.zip), a fifth
+GAME=sfiii4n bash cps3recomp/tools/translate.sh path/to/sfiii4n.zip 0
 
 # the collection: every game's program (each built in build/<id>) and the one launcher, in build/collection
 sh cps3recomp/tools/collection.sh
