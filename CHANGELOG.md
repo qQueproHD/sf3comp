@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **4rd Strike** (4rd Arrange Edition 2013, `sfiii4n`; issues #9, #23) as a game of its own in the launcher, with
+  training mode, widescreen, online play in its own waiting room, and replays. The hack patches 990608's program in
+  place (two routines and the characters' data), so it has that revision's facts and translated code.
 - **Dreamcast arranged music, fixed** (player reports): each round now has its own Dreamcast version (rounds 1, 2 and
   3, as the Dreamcast plays them); only the round-3 version played before, for every round. And it plays at the
   arcade music's loudness (it was about three times louder than the sound effects and the board's music). The first

@@ -21,7 +21,7 @@ stages and music from New Generation and Second Impact.
 **[Get started →](#getting-started)**
 
 **No game files are included.** You need your own arcade ROM sets: `sfiii3nr1` (3rd Strike), `sfiiin` (New
-Generation) and `sfiii2n` (2nd Impact), any of them; `sfiii3n` too for 3rd Strike's later revision ([what you need](#what-you-need)). This project cannot help you get them.
+Generation) and `sfiii2n` (2nd Impact), any of them; `sfiii3n` too for 3rd Strike's later revision, and `sfiii4n` for 4rd Strike ([what you need](#what-you-need)). This project cannot help you get them.
 
 ## What sf3comp does that I haven't found in any other 3rd Strike port
 ### I'm aware there are other 3rd strike decomp/recomp projects, this is what I believe makes mine unique
@@ -75,6 +75,12 @@ at that moment to try again.
 The board had two releases a month apart. The definitive version is made from the first, 990512 (`sfiii3nr1`), the one
 tournaments and Fightcade play. The later one, 990608 (`sfiii3n`), is in the launcher as a game of its own, with
 training mode, widescreen, online play and replays, as the two older games have.
+
+## 4rd Strike
+
+**4rd Strike** (4rd Arrange Edition 2013, the fan rebalance of 3rd Strike; the set `sfiii4n`) is a game of its own in
+the launcher too, with the same: training mode, widescreen, online play (its own waiting room, apart from 3rd
+Strike's) and replays. It is made on the 990608 revision and has none of the definitive version's own extras.
 
 ## The definitive version's stages (3rd Strike)
 
@@ -141,6 +147,7 @@ Settings, save states and the board's settings memory are kept in your user fold
   port is made from this one's program.
 - **`sfiiin`**: New Generation (Asia 970204, NO CD), and **`sfiii2n`**: 2nd Impact (Asia 970930, NO CD). Each plays
   as a game of its own, and beside `sfiii3nr1` gives 3rd Strike its stages.
+- Optional: **`sfiii3n`** (3rd Strike, Japan 990608, NO CD) and **`sfiii4n`** (4rd Strike), each a game of its own.
 - macOS 13 or later (Apple silicon or Intel), Linux x86_64 (SteamOS included), Windows 10 or 11, 64-bit, or
   Android 9 or later on a 64-bit ARM phone or tablet.
 - A gamepad or stick is recommended (six buttons).
