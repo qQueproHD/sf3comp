@@ -5,6 +5,12 @@
 - **4rd Strike** (4rd Arrange Edition 2013, `sfiii4n`; issues #9, #23) as a game of its own in the launcher, with
   training mode, widescreen, online play in its own waiting room, and replays. The hack patches 990608's program in
   place (two routines and the characters' data), so it has that revision's facts and translated code.
+- **Widescreen in New Generation and 2nd Impact is the board's own**: the 16:9 mode both games have (2nd Impact's
+  test menu calls it Screen mode; New Generation's leaves the row out). The picture is 495 columns, the life bars,
+  faces and gauges are laid out at the corners, and the stages' ends are the game's own, so the corners are no longer
+  reached sooner and there are no invisible walls to choose. Switched in the in-game menu, the game starts again, as
+  the board does when the setting changes. 3rd Strike keeps its widescreen: its own wide mode leaves the panel laid
+  out for 4:3. (Issue #18)
 - **Dreamcast arranged music, fixed** (player reports): each round now has its own Dreamcast version (rounds 1, 2 and
   3, as the Dreamcast plays them); only the round-3 version played before, for every round. And it plays at the
   arcade music's loudness (it was about three times louder than the sound effects and the board's music). The first
