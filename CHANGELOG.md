@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Dreamcast arranged can only be chosen with the disc**: the launcher's Custom soundtrack dropdown and the in-game
+  menu offer it only once a Dreamcast disc image is beside the ROM set (or in the game's folder), or its music has
+  been copied already.
 - **4rd Strike** (4rd Arrange Edition 2013, `sfiii4n`; issues #9, #23) as a game of its own in the launcher, with
   training mode, widescreen, online play in its own waiting room, and replays. The hack patches 990608's program in
   place (two routines and the characters' data), so it has that revision's facts and translated code.

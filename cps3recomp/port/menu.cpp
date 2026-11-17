@@ -107,6 +107,13 @@ void Menu::Open(bool withStates) {
                 // (none but the one chosen and off, which the menu always offers: the row can only be put back to off)
                 offered.back().assign(std::max<size_t>(info.choices.size(), 2), false);
             }
+            if (choiceAvailable) {
+                for (size_t choice = 1; choice < offered.back().size(); choice++) {
+                    if (offered.back()[choice] && !choiceAvailable(info.name, static_cast<int>(choice))) {
+                        offered.back()[choice] = false;
+                    }
+                }
+            }
         }
         config.offered = [offered](size_t feature, int choice) {
             return feature >= offered.size() || choice < 0 || choice >= static_cast<int>(offered[feature].size()) || offered[feature][static_cast<size_t>(choice)];

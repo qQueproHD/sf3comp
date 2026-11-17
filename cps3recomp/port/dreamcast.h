@@ -8,6 +8,7 @@
 // is ISO 9660 at LBA 45000 on, its sectors 2352 bytes (mode 1: 2048 of data after 16) or 2048.
 #pragma once
 
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -23,5 +24,11 @@ bool CopyFromDisc(const std::string &image, const std::vector<std::string> &file
 // ... and whether that image looked like a disc's at all (its .cue or .gdi read): for telling a player which of the
 // images beside the ROM set was the one meant (a ROM set's zip is not)
 bool LooksLikeDisc(const std::string &image);
+// Whether a folder has an image that looks like a disc's (LooksLikeDisc): quick, for whether to offer what needs one
+// (it reads no more than each zip's list of files)
+bool DiscImageIn(const std::string &folder);
+// (a path as UTF-8 text, as the port keeps paths and as the launcher gives a game's file: for the launcher's use)
+std::string DiscPathText(const std::filesystem::path &path);
+std::filesystem::path DiscTextPath(const std::string &text);
 
 } // namespace port

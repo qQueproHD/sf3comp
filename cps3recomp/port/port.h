@@ -180,6 +180,7 @@ struct Port {
     bool soundtrackOn = false;
     int soundtrackValue = 0; // (the feature's choice: 1 on, 2 on with the playlist shuffled, 3 the Dreamcast's: DreamcastFolder)
     std::string DreamcastFolder(std::string &note); // (its music copied from the player's disc image, once: dreamcast.h)
+    bool DreamcastThere();                          // (... copied already, or a disc image where it is looked for)
     std::string SoundtrackFolder() const;
     void SoundtrackFollow(); // (each frame: the feature switched on or off in the menu)
     int coinFrames = 0;   // frames left of the menu's coin
