@@ -438,25 +438,34 @@ std::string Port::DreamcastFolder(std::string &note) {
         std::vector<std::string> places = {SoundtrackFolder()};
         places.push_back(PathText(TextPath(RomPath()).parent_path()));
         places.push_back(PathText(TextPath(opt.settingsPath).parent_path()));
-        std::string why = "none there";
+        // (the first disc image's trouble is the one told: a ROM set's zip, which holds no disc, is passed over)
+        std::string why, which;
         for (const std::string &place : places) {
             for (const std::string &image : DiscImagesIn(place)) {
                 std::string error_;
                 if (CopyFromDisc(image, files, PathText(dir), error_)) {
                     fprintf(stderr, "dreamcast: the music copied from %s\n", image.c_str());
+                    note = "Dreamcast music copied from " + PathText(TextPath(image).filename()) + ".";
                     all = true;
                     break;
                 }
                 fprintf(stderr, "dreamcast: %s: %s\n", image.c_str(), error_.c_str());
-                why = error_;
+                if (which.empty() && LooksLikeDisc(image)) {
+                    which = PathText(TextPath(image).filename());
+                    why = error_;
+                }
             }
             if (all) {
                 break;
             }
         }
         if (!all) {
-            note = std::string("No Dreamcast disc image (") + TheGame().dreamcastDisc + ") beside the ROM set: the board's music.";
-            fprintf(stderr, "dreamcast: no disc image with the music (%s); looked beside %s\n", why.c_str(), RomPath().c_str());
+            const std::string folder = PathText(TextPath(RomPath()).parent_path());
+            note = which.empty() ? "Dreamcast music: no disc image (.cue, .gdi or .zip) found beside the ROM set, in " + folder +
+                                       ". Playing the board's music."
+                                 : "Dreamcast music: " + which + ": " + why + ". Playing the board's music.";
+            fprintf(stderr, "dreamcast: no disc image with the music; looked in %s, %s and %s\n", places[0].c_str(), places[1].c_str(),
+                    places[2].c_str());
             return "";
         }
     }
@@ -491,6 +500,9 @@ void Port::SoundtrackFollow() {
             return;
         }
         const int found = soundtrack.Open(folder, machine->soundtrack, false);
+        if (!note.empty()) {
+            menu.Note(note); // (copied just now: said once)
+        }
         if (opt.stats || getenv("CPS3RECOMP_SOUNDTRACK_LOG")) {
             fprintf(stderr, "soundtrack: %d songs from the Dreamcast's, %s\n", found, folder.c_str());
         }

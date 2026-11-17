@@ -20,5 +20,8 @@ std::vector<std::string> DiscImagesIn(const std::string &folder);
 // under their own names (written to a part file first, so that none is left half made). True when every one was; else
 // `error` says why (the image not a disc's, a file not on it).
 bool CopyFromDisc(const std::string &image, const std::vector<std::string> &files, const std::string &folder, std::string &error);
+// ... and whether that image looked like a disc's at all (its .cue or .gdi read): for telling a player which of the
+// images beside the ROM set was the one meant (a ROM set's zip is not)
+bool LooksLikeDisc(const std::string &image);
 
 } // namespace port
