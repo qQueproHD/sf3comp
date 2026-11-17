@@ -79,9 +79,14 @@ public:
     // The next speed up (by 1) or down (by -1)
     void Faster(int by);
     void SetFullSpeed();
-    // A line to tell the player (why not, say), until the next press
+    // A line to tell the player (why not, say), until the next press; given while the menu is closed (a choice the
+    // launcher made, taking effect at the start), it waits and is shown when the menu next opens
     void Note(const std::string &text) {
-        m_menu.Note(text);
+        if (m_menu.IsOpen()) {
+            m_menu.Note(text);
+        } else {
+            m_waiting = text;
+        }
     }
     // Over a picture of 32-bit pixels (red in the low byte)
     void Draw(uint32_t *pixels, int width, int height) const {
@@ -100,6 +105,7 @@ private:
 
     recomp::Menu m_menu;
     size_t m_command = 0, m_replay = 0;
+    std::string m_waiting; // (a note given while the menu was closed: Note)
 };
 
 } // namespace port

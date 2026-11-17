@@ -11,6 +11,9 @@
   window with no edges as large as the screen instead, for what needs the game in a window (NVIDIA RTX HDR, overlays,
   recorders, quick switching to other windows). The launcher's Full screen, F11 and Alt+Enter all follow it. Not with
   the Arcade monitor's 384 x 224, which always takes the screen over.
+- Dreamcast arranged music: when it can't be copied, the in-game menu says why the next time it opens (which disc
+  image, and what was wrong: most often its track files missing beside the .cue or .gdi), and says so when it was.
+  docs/DREAMCAST_MUSIC.md no longer says guest stages play their own music with it: they play the arrangement too.
 
 ## 0.2.0-beta.1
 

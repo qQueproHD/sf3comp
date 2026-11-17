@@ -22,7 +22,10 @@ CDI images are not read (they are usually re-compressed and missing parts of the
 3. Start a fight. The first time, the arranged tracks are copied off the disc into a `dreamcast` folder beside the
    game's settings (about 60 MB, a few seconds). After that the disc image isn't needed, and they just play.
 
-If no disc image is found, the menu says so and the arcade music plays.
+If it doesn't work, the arcade music plays and the in-game menu says why the next time it opens: no disc image found,
+or which image was found and what was wrong with it (most often its track files aren't in the same folder as the
+`.cue` or `.gdi`, which is only an index of them). The game's log (launcher → Show the log) has the same, on lines
+starting `dreamcast:`. A `dreamcast` folder with 16 `.ADX` files beside the game's settings means the copy worked.
 
 ## What changes
 
@@ -30,17 +33,11 @@ If no disc image is found, the menu says so and the arcade music plays.
   for a stage (the second comes later in the match); the arrangement plays for both.
 - **Everything else** (title, character select, versus, winner and so on) stays the arcade's own music.
 
-## Stage music caveat: guest stages
+## Guest stages
 
-A fight on a **New Generation or 2nd Impact stage** plays that game's own stage music, which takes the place of
-3rd Strike's music, the Dreamcast arrangement included. To hear the Dreamcast tracks, fight on a 3rd Strike stage:
-
-- set the menu's **Stage** to **The game's choice** or one of 3rd Strike's own stages, and
-- in arcade mode, leave **Opponent's stage, any game** off, or expect the fights it puts on New Generation or
-  2nd Impact stages to have their music instead.
-
-The **Fight music** option still works with it: it picks which stage's theme plays, and that theme is the Dreamcast
-arrangement.
+A fight on a **New Generation or 2nd Impact stage** plays the Dreamcast arrangement too: with a custom soundtrack on,
+the guest stage's own music is left out, and the theme is that of the 3rd Strike stage the fight is on underneath (the
+one the game chose, or the one **Fight music** picks).
 
 ## Trying it out
 

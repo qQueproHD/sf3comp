@@ -122,6 +122,10 @@ void Menu::Open(bool withStates) {
     config.closeName = "Esc";
     m_menu.Configure(std::move(config));
     m_menu.Open();
+    if (!m_waiting.empty()) {
+        m_menu.Note(m_waiting);
+        m_waiting.clear();
+    }
 }
 
 Menu::Menu() {
