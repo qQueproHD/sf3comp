@@ -361,7 +361,7 @@ namespace {
                 }
             }
             if (!track.bytes) {
-                error = error.empty() ? "no disc's .cue or .gdi in the zip" : error;
+                error = error.empty() ? "it holds no disc image (.cue or .gdi)" : error;
                 return false;
             }
         } else {
@@ -369,13 +369,13 @@ namespace {
             std::stringstream sheet;
             sheet << sheetFile.rdbuf();
             if (!sheetFile || !TrackOf(sheet.str(), ending == ".gdi", file, sectorSize)) {
-                error = "no high-density data track in it";
+                error = "it names no Dreamcast data track (track 3, at sector 45000): not a Dreamcast disc's";
                 return false;
             }
             const std::filesystem::path at = image.parent_path() / TextPath(file);
             std::error_code e;
             if (!std::filesystem::exists(at, e)) {
-                error = "its track " + file + " is not beside it";
+                error = "its track file " + file + " is not beside it: the track files have to be in the same folder";
                 return false;
             }
             track.bytes = std::make_unique<FileBytes>(at);
@@ -438,6 +438,25 @@ namespace {
     }
 } // namespace
 
+bool LooksLikeDisc(const std::string &image) {
+    const std::filesystem::path path = TextPath(image);
+    const std::string ending = Lower(PathText(path.extension()));
+    if (ending == ".cue" || ending == ".gdi") {
+        return true;
+    }
+    Zip zip;
+    if (!zip.Open(path)) {
+        return false;
+    }
+    for (const Zip::Entry &e : zip.entries) {
+        const std::string name = Lower(e.name);
+        if (name.size() > 4 && (name.compare(name.size() - 4, 4, ".cue") == 0 || name.compare(name.size() - 4, 4, ".gdi") == 0)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 std::vector<std::string> DiscImagesIn(const std::string &folder) {
     std::vector<std::string> images;
     std::error_code error;
@@ -473,7 +492,7 @@ bool CopyFromDisc(const std::string &image, const std::vector<std::string> &file
     for (const std::string &name : files) {
         const auto found = all.find(Upper(name));
         if (found == all.end()) {
-            error = "no " + name + " on the disc";
+            error = "no " + name + " on the disc: not this game's Dreamcast disc, or a converted image";
             return false;
         }
         wanted.emplace_back(name, found->second);

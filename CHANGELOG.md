@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Dreamcast arranged music: when it can't be copied, the in-game menu says why the next time it opens (which disc
+  image, and what was wrong: most often its track files missing beside the .cue or .gdi), and says so when it was.
+  docs/DREAMCAST_MUSIC.md no longer says guest stages play their own music with it: they play the arrangement too.
+
 ## 0.2.0-beta.1
 
 - **Dreamcast arranged music** (3rd Strike; issue #28): Custom soundtrack has a fourth choice, **Dreamcast arranged**.
