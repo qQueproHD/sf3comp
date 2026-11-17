@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Dreamcast arranged music, fixed** (player reports): each round now has its own Dreamcast version (rounds 1, 2 and
+  3, as the Dreamcast plays them); only the round-3 version played before, for every round. And it plays at the
+  arcade music's loudness (it was about three times louder than the sound effects and the board's music). The first
+  start after updating copies the other rounds' files from the disc image, which has to be beside the ROM set still.
+- The custom soundtrack: a song in soundtrack.ini may name other files for other moments (`file2`, `file3`...), as
+  the game's sources choose them (3rd Strike: `file3` for a stage's song in round 3 and later).
 - **Bezels** (Display page; issue #8): something beside a 4:3 picture on a wider window or screen, off unless chosen.
   With bezels the window opens 16:9 and the picture keeps its shape in the middle; full screen they fill whatever is
   left beside it, ultrawide screens too. Black, White, four patterns drawn by the game itself (Dusk, Carbon, Neon

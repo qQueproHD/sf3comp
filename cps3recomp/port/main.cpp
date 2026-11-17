@@ -452,7 +452,8 @@ std::string Port::DreamcastFolder(std::string &note) {
     }
     const std::filesystem::path dir = TextPath(opt.settingsPath).parent_path() / "dreamcast";
     std::vector<std::string> files;
-    std::string ini = "; Made by the custom soundtrack's \"Dreamcast arranged\": each song and its file, from the Dreamcast disc\n";
+    std::string ini = "; Made by the custom soundtrack's \"Dreamcast arranged\": each song and its files, from the Dreamcast disc\n"
+                      "volume = " + std::to_string(TheGame().dreamcastVolume) + "\n";
     bool all = true;
     std::error_code error;
     for (const cps3recomp::Game::DiscSong &one : TheGame().dreamcastMusic) {
@@ -461,7 +462,7 @@ std::string Port::DreamcastFolder(std::string &note) {
             files.push_back(one.file);
             all = all && std::filesystem::exists(dir / name, error);
         }
-        ini += std::string("[") + one.song + "]\nfile = " + name + "\n";
+        ini += std::string("[") + one.song + "]\nfile" + (one.variant ? std::to_string(one.variant) : std::string()) + " = " + name + "\n";
     }
     if (!all) {
         std::vector<std::string> places = {SoundtrackFolder()};
