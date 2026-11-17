@@ -154,6 +154,14 @@ void RegisterPortFeatures() {
                                   "4:3: as the arcade's monitor showed it. Square pixels: each pixel as wide as it is tall, "
                                   "a little wider than 4:3. Fill: the whole window or screen, stretched to it.",
                                   0, {"4:3", "Square pixels", "Fill"}});
+    // (display_bezel: bezel.h, issue #8; the window opens 16:9 with one)
+    TheGame().features.push_back({"display_bezel", "Display", "Bezels",
+                                  "What fills the window or screen beside a picture narrower than it (4:3 on a widescreen or "
+                                  "ultrawide screen). With bezels the window opens 16:9 and the picture keeps its shape in the "
+                                  "middle. Black or White, a pattern (Dusk, Carbon, Neon grid, Brushed metal), or Your own: the "
+                                  "first .png or .bmp in the bezels folder beside the game's settings, as large as covers the "
+                                  "screen, its middle in the middle (a 16:9 picture with a 4:3 hole suits a 16:9 screen).",
+                                  0, std::vector<const char *>(std::begin(kBezelChoices), std::end(kBezelChoices))});
     // (display_shader: Port::ShaderPreset, shading.h; the presets are in shaders/ beside the program, kShaderPresets.
     // librashader is in each release, tools/librashader.sh; on Android the presets are unpacked by GameActivity.java)
     TheGame().features.push_back({"display_shader", "Display", "Shader",
@@ -217,6 +225,16 @@ void RegisterPortFeatures() {
                                   "frame later; on a screen slower than 60 Hz the game slows to it. Off: each picture shown as soon "
                                   "as it's made.",
                                   0});
+#ifndef __ANDROID__
+    // (display_borderless: frontend_sdl.cpp, GoFullScreen; issue #20)
+    TheGame().features.push_back({"display_borderless", "Display", "Full screen as",
+                                  "Full screen: the game takes the screen over. Borderless window: a window with no edges as "
+                                  "large as the screen, in its place, for what needs the game in a window: HDR made by the "
+                                  "graphics card (NVIDIA RTX HDR), overlays and recorders, switching to other windows at once. "
+                                  "The launcher's Full screen, F11 and Alt+Enter go to whichever is chosen. Not with the Arcade "
+                                  "monitor's 384 x 224, which always takes the screen over.",
+                                  0, {"Full screen", "Borderless window"}});
+#endif
     TheGame().features.push_back({"window_size", "Display", "Window size",
                                   "How large the window opens, in times the board's 224 lines (it can be made any size by "
                                   "dragging its edges; full screen is on the launcher's first page and F11).",
@@ -266,6 +284,12 @@ Scaling DisplayScaling() {
 }
 Shape DisplayShape() {
     return static_cast<Shape>(std::clamp(FeatureValue("display_shape"), 0, 2));
+}
+Bezel DisplayBezel() {
+    return static_cast<Bezel>(std::clamp(FeatureValue("display_bezel"), 0, static_cast<int>(std::size(kBezelChoices)) - 1));
+}
+bool BorderlessFullScreen() {
+    return FeatureValue("display_borderless") == 1 && !ArcadeResolution();
 }
 bool ArcadeResolution() {
     return FeatureValue("crt_resolution") == 1;
@@ -400,6 +424,11 @@ std::string Port::ShaderPreset() const {
         }
     }
     return PathText(program / "shaders" / kShaderPresets[value - 1]);
+}
+
+// Your own bezel's folder (bezel.h): "bezels" beside settings.ini
+std::string Port::BezelFolder() const {
+    return PathText(TextPath(opt.settingsPath).parent_path() / "bezels");
 }
 
 // The custom soundtrack's folder: the one the launcher chose, or "soundtrack" beside settings.ini
