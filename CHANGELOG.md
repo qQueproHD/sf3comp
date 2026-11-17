@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **4rd Strike** (4rd Arrange Edition 2013, `sfiii4n`; issues #9, #23) as a game of its own in the launcher, with
+  training mode, widescreen, online play in its own waiting room, and replays. The hack patches 990608's program in
+  place (two routines and the characters' data), so it has that revision's facts and translated code.
 - **Widescreen in New Generation and 2nd Impact is the board's own**: the 16:9 mode both games have (2nd Impact's
   test menu calls it Screen mode; New Generation's leaves the row out). The picture is 495 columns, the life bars,
   faces and gauges are laid out at the corners, and the stages' ends are the game's own, so the corners are no longer
