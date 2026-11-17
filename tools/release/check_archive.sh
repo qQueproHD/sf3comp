@@ -19,7 +19,7 @@ for archive in "$@"; do
     names="$(cd "$dir" && find . -type f | sort)"
     found="$(echo "$names" | grep -iE '\.(zip|7z|key|bin|rom|state|sav|eep|lst|u2)$|simm[0-9]' || true)"
     [ -z "$found" ] || bad "game or data files: $found"
-    for need in LICENSE.txt THIRD_PARTY_NOTICES.md licenses/SDL3.txt licenses/DearImGui.txt licenses/Inter-OFL.txt licenses/sound-decoders.txt SOURCE.txt; do
+    for need in LICENSE.txt THIRD_PARTY_NOTICES.md licenses/SDL3.txt licenses/DearImGui.txt licenses/Inter-OFL.txt licenses/flag-icons-MIT.txt licenses/sound-decoders.txt SOURCE.txt; do
         echo "$names" | grep -q "/$need\$" || bad "missing $need"
     done
     for game in $games; do

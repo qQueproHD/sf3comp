@@ -8,6 +8,40 @@
   reached sooner and there are no invisible walls to choose. Switched in the in-game menu, the game starts again, as
   the board does when the setting changes. 3rd Strike keeps its widescreen: its own wide mode leaves the panel laid
   out for 4:3. (Issue #18)
+- **Dreamcast arranged music, fixed** (player reports): each round now has its own Dreamcast version (rounds 1, 2 and
+  3, as the Dreamcast plays them); only the round-3 version played before, for every round. And it plays at the
+  arcade music's loudness (it was about three times louder than the sound effects and the board's music). The first
+  start after updating copies the other rounds' files from the disc image, which has to be beside the ROM set still.
+- The custom soundtrack: a song in soundtrack.ini may name other files for other moments (`file2`, `file3`...), as
+  the game's sources choose them (3rd Strike: `file3` for a stage's song in round 3 and later).
+- **Bezels** (Display page; issue #8): something beside a 4:3 picture on a wider window or screen, off unless chosen.
+  With bezels the window opens 16:9 and the picture keeps its shape in the middle; full screen they fill whatever is
+  left beside it, ultrawide screens too. Black, White, four patterns drawn by the game itself (Dusk, Carbon, Neon
+  grid, Brushed metal), or **Your own**: the first .png or .bmp in a `bezels` folder beside the game's settings,
+  scaled to cover the screen with its middle in the middle. Under shaders too.
+- **Borderless full screen** (Display → **Full screen as**; issue #20): **Borderless window** makes full screen a
+  window with no edges as large as the screen instead, for what needs the game in a window (NVIDIA RTX HDR, overlays,
+  recorders, quick switching to other windows). The launcher's Full screen, F11 and Alt+Enter all follow it. Not with
+  the Arcade monitor's 384 x 224, which always takes the screen over.
+- Dreamcast arranged music: when it can't be copied, the in-game menu says why the next time it opens (which disc
+  image, and what was wrong: most often its track files missing beside the .cue or .gdi), and says so when it was.
+  docs/DREAMCAST_MUSIC.md no longer says guest stages play their own music with it: they play the arrangement too.
+
+## 0.2.0-beta.1
+
+- **Dreamcast arranged music** (3rd Strike; issue #28): Custom soundtrack has a fourth choice, **Dreamcast arranged**.
+  With your own image of the Dreamcast 3rd Strike disc beside the ROM set (or in the soundtrack folder): a Redump .cue
+  with its tracks, a .gdi, or the .zip of either, as downloaded. The first time, its arranged stage themes are copied
+  out (about 60 MB, a few seconds) into a dreamcast folder beside the settings, and from then on they play in place of
+  the board's stage music, each looping as it does on the Dreamcast. The other music stays the board's.
+- The custom soundtrack plays **ADX** files too (CRI's ADPCM, with their own loop points).
+- **Held arrows in the in-game menu**: holding Up, Down, Left or Right goes on through the rows and choices, faster
+  after a second (a long choice, the stages say, no longer needs a press for each).
+- **Country flags in the waiting room**: choose **Your country** on the Online page (none unless you do) and the
+  others in the waiting room see your flag and country beside your name, as you see theirs. Needs the online service
+  deployed with it (`online/`); an older service just doesn't pass countries on.
+- **Input delay for hosting**: the launcher's Online page has an **Input delay** choice (0 to 8 frames, 2 unless chosen)
+  under Host, for the matches you host and the invitations you send; the other player gets the same.
 - **Arcade monitor** (its own section on the launcher's Features page; in the menu, under Display): **Full screen
   resolution → 384 x 224** switches the screen to the board's own resolution (an arcade monitor's modeline from CRT
   Emudriver, or a custom resolution) and fills it pixel for pixel. Only that exact mode is used, at the refresh nearest

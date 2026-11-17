@@ -106,6 +106,10 @@ public:
     // `height` pixels, red in the low byte, each colour already multiplied by its alpha; stretched to the window.
     // None (nullptr) draws nothing over it. Not through a shader preset.
     void SetOverlay(const uint32_t *pixels, int width, int height);
+    // What is drawn under the picture, over the whole window (the Display page's bezels: bezel.h), as the overlay is
+    // over it but opaque: `width` x `height` pixels, red in the low byte, stretched to the window. Through a shader
+    // preset too. None (nullptr): black there
+    void SetBackdrop(const uint32_t *pixels, int width, int height);
 
     // For tests: the GPU path with no window. The picture is drawn into `outWidth` x `outHeight` at `where`
     // as Show would draw it, and read back. False (with the reason) where there is no GPU device.
@@ -162,16 +166,26 @@ private:
     SDL_GPUTexture *m_picture = nullptr;
     SDL_GPUTransferBuffer *m_transfer = nullptr;
     int m_width = 0, m_height = 0;
-    // The overlay (SetOverlay): its pixels, waiting to be sent to the GPU texture or the renderer's when changed
-    std::vector<uint32_t> m_overlay;
-    int m_overlayWidth = 0, m_overlayHeight = 0;
-    bool m_overlayChanged = false;
+    // What is drawn over (the overlay: SetOverlay) or under (the backdrop: SetBackdrop) the picture, the whole window:
+    // its pixels, waiting to be sent to the GPU's texture or the renderer's when changed
+    struct Layer {
+        std::vector<uint32_t> pixels;
+        int width = 0, height = 0;
+        bool changed = false;
+        SDL_GPUTexture *texture = nullptr;
+        SDL_GPUTransferBuffer *transfer = nullptr;
+        int textureWidth = 0, textureHeight = 0;
+        SDL_Texture *rendered = nullptr;
+        void Set(const uint32_t *from, int w, int h);
+    };
+    Layer m_overlay, m_backdrop;
     SDL_GPUGraphicsPipeline *m_overlayPipeline = nullptr;
-    SDL_GPUTexture *m_overlayTexture = nullptr;
-    SDL_GPUTransferBuffer *m_overlayTransfer = nullptr;
-    int m_overlayTextureWidth = 0, m_overlayTextureHeight = 0;
-    SDL_Texture *m_overlayRendered = nullptr;
-    bool UploadOverlay(SDL_GPUCommandBuffer *commands);
+    // (sent to the GPU's texture in a copy pass of `commands`; false: none to draw)
+    bool UploadLayer(SDL_GPUCommandBuffer *commands, Layer &layer);
+    // (drawn over the whole window through SDL's renderer)
+    void RenderLayer(Layer &layer);
+    // (its GPU texture and renderer texture let go; its pixels kept, to be sent to whatever draws next)
+    void ReleaseLayer(Layer &layer);
     // SDL's renderer
     SDL_Renderer *m_renderer = nullptr;
     SDL_Texture *m_texture = nullptr, *m_enlarged = nullptr;

@@ -261,6 +261,8 @@ private:
     // Join's: the match (a code or an address), and the player's name, which the game shows the other player
     std::vector<std::string> join_arguments(const launcher::Online& online, const std::string& match, bool watching = false) const;
     void arcade_row(float width, const launcher::Online& online);
+    // The input delay the player chose for the matches they host (`delay_argument`), added to Host's and Invite's
+    void delay_arguments(std::vector<std::string>& args, const launcher::Online& online) const;
     void lobby_card(size_t which, float width, bool ready);
     // The Online page (a collection with a lobby: Collection::lobby): host in the lobby in any game, and every game's
     // open matches
@@ -290,6 +292,7 @@ private:
     void live_label(const char* text, float width, bool fetching);
     // A card's only row while there is nothing in it: `text`, with a spinner while `looking`
     void empty_row(float width, const char* text, bool looking);
+    void country_row(float width);
     void room_card(float width, const std::vector<size_t>& playable);
     void invitations_card(float width);
     std::vector<std::string> invite_arguments(const launcher::Online& online, const launcher::RoomPlayer& player) const;

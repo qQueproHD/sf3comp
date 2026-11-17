@@ -7,6 +7,7 @@
 #include "system.h"
 #include "menu.h"
 #include "netplay.h"
+#include "bezel.h"
 #include "present.h"
 #include "replay.h"
 #include "soundtrack.h"
@@ -177,7 +178,8 @@ struct Port {
     // The custom soundtrack (soundtrack.h): its files, played while the port's custom_soundtrack feature is on
     SoundtrackPlayer soundtrack;
     bool soundtrackOn = false;
-    int soundtrackValue = 0; // (the feature's choice: 1 on, 2 on with the playlist shuffled)
+    int soundtrackValue = 0; // (the feature's choice: 1 on, 2 on with the playlist shuffled, 3 the Dreamcast's: DreamcastFolder)
+    std::string DreamcastFolder(std::string &note); // (its music copied from the player's disc image, once: dreamcast.h)
     std::string SoundtrackFolder() const;
     void SoundtrackFollow(); // (each frame: the feature switched on or off in the menu)
     int coinFrames = 0;   // frames left of the menu's coin
@@ -263,6 +265,8 @@ struct Port {
     bool Init(std::string &error);
     // The shader preset to draw with (shading.h): --shader's, or the Display page's Shader's; "" for none
     std::string ShaderPreset() const;
+    // Your own bezel's folder (bezel.h)
+    std::string BezelFolder() const;
     // One frame: input (window, movie or made up), the machine, the per-frame outputs
     void RunFrame();
     // The frame itself, with these controls: what makes the next frame from the last (all that online play runs
@@ -357,6 +361,10 @@ void StartOnAndroid();
 Scaling DisplayScaling();
 Shape DisplayShape();
 int WindowSize();
+// The Display page's Bezels (bezel.h), and its Full screen as: true for a borderless window as large as the screen in
+// place of full screen (never with the arcade monitor's resolution)
+Bezel DisplayBezel();
+bool BorderlessFullScreen();
 // The Arcade monitor page's full screen resolution (true: the screen switched to the board's 384 x 224), screen (0:
 // the main one, 1..3: the others in the system's order) and Compact menu switch
 bool ArcadeResolution();

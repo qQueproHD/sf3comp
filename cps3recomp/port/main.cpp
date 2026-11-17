@@ -11,6 +11,7 @@
 #include "png_write.h"
 #include "present.h"
 #include "port.h"
+#include "dreamcast.h"
 #include "../runtime/recomp.h"
 #include "../recomp-common/folders.h"
 #include "../recomp-common/proxy.h"
@@ -153,6 +154,14 @@ void RegisterPortFeatures() {
                                   "4:3: as the arcade's monitor showed it. Square pixels: each pixel as wide as it is tall, "
                                   "a little wider than 4:3. Fill: the whole window or screen, stretched to it.",
                                   0, {"4:3", "Square pixels", "Fill"}});
+    // (display_bezel: bezel.h, issue #8; the window opens 16:9 with one)
+    TheGame().features.push_back({"display_bezel", "Display", "Bezels",
+                                  "What fills the window or screen beside a picture narrower than it (4:3 on a widescreen or "
+                                  "ultrawide screen). With bezels the window opens 16:9 and the picture keeps its shape in the "
+                                  "middle. Black or White, a pattern (Dusk, Carbon, Neon grid, Brushed metal), or Your own: the "
+                                  "first .png or .bmp in the bezels folder beside the game's settings, as large as covers the "
+                                  "screen, its middle in the middle (a 16:9 picture with a 4:3 hole suits a 16:9 screen).",
+                                  0, std::vector<const char *>(std::begin(kBezelChoices), std::end(kBezelChoices))});
     // (display_shader: Port::ShaderPreset, shading.h; the presets are in shaders/ beside the program, kShaderPresets.
     // librashader is in each release, tools/librashader.sh; on Android the presets are unpacked by GameActivity.java)
     TheGame().features.push_back({"display_shader", "Display", "Shader",
@@ -216,6 +225,16 @@ void RegisterPortFeatures() {
                                   "frame later; on a screen slower than 60 Hz the game slows to it. Off: each picture shown as soon "
                                   "as it's made.",
                                   0});
+#ifndef __ANDROID__
+    // (display_borderless: frontend_sdl.cpp, GoFullScreen; issue #20)
+    TheGame().features.push_back({"display_borderless", "Display", "Full screen as",
+                                  "Full screen: the game takes the screen over. Borderless window: a window with no edges as "
+                                  "large as the screen, in its place, for what needs the game in a window: HDR made by the "
+                                  "graphics card (NVIDIA RTX HDR), overlays and recorders, switching to other windows at once. "
+                                  "The launcher's Full screen, F11 and Alt+Enter go to whichever is chosen. Not with the Arcade "
+                                  "monitor's 384 x 224, which always takes the screen over.",
+                                  0, {"Full screen", "Borderless window"}});
+#endif
     TheGame().features.push_back({"window_size", "Display", "Window size",
                                   "How large the window opens, in times the board's 224 lines (it can be made any size by "
                                   "dragging its edges; full screen is on the launcher's first page and F11).",
@@ -243,12 +262,20 @@ void RegisterPortFeatures() {
                                   0});
     // (custom_soundtrack: soundtrack.h; for a game whose sources follow its music driver: runtime/soundtrack.h)
     if (TheGame().songCount) {
-        TheGame().features.push_back({"custom_soundtrack", "Sound", "Custom soundtrack",
-                                      "Plays your own music files in place of the board's music; the sound effects and voices are "
-                                      "the board's. Files named for the game's songs (songs.txt in the folder lists them) replace "
-                                      "those songs; a folder of any other music plays as a playlist, one file after another. The "
-                                      "folder is chosen on the launcher's game page. Shuffled: the playlist in a random order.",
-                                      kFeatureEnhanced, {"Off", "On", "On, shuffled"}});
+        static std::string about; // (the feature keeps a pointer to it)
+        about = "Plays your own music files in place of the board's music; the sound effects and voices are "
+                            "the board's. Files named for the game's songs (songs.txt in the folder lists them) replace "
+                            "those songs; a folder of any other music plays as a playlist, one file after another. The "
+                            "folder is chosen on the launcher's game page. Shuffled: the playlist in a random order.";
+        std::vector<const char *> choices = {"Off", "On", "On, shuffled"};
+        if (!TheGame().dreamcastMusic.empty()) {
+            about += std::string(" Dreamcast arranged: the Dreamcast version's arranged music for the stages, from your own disc "
+                                 "image of it (") + TheGame().dreamcastDisc +
+                     ": a .cue or .gdi with its tracks, or the .zip of them) put beside the ROM set or in the soundtrack "
+                     "folder; it is copied out once, the first time (a few seconds).";
+            choices.push_back("Dreamcast arranged");
+        }
+        TheGame().features.push_back({"custom_soundtrack", "Sound", "Custom soundtrack", about.c_str(), kFeatureEnhanced, choices});
     }
 }
 
@@ -257,6 +284,12 @@ Scaling DisplayScaling() {
 }
 Shape DisplayShape() {
     return static_cast<Shape>(std::clamp(FeatureValue("display_shape"), 0, 2));
+}
+Bezel DisplayBezel() {
+    return static_cast<Bezel>(std::clamp(FeatureValue("display_bezel"), 0, static_cast<int>(std::size(kBezelChoices)) - 1));
+}
+bool BorderlessFullScreen() {
+    return FeatureValue("display_borderless") == 1 && !ArcadeResolution();
 }
 bool ArcadeResolution() {
     return FeatureValue("crt_resolution") == 1;
@@ -393,6 +426,11 @@ std::string Port::ShaderPreset() const {
     return PathText(program / "shaders" / kShaderPresets[value - 1]);
 }
 
+// Your own bezel's folder (bezel.h): "bezels" beside settings.ini
+std::string Port::BezelFolder() const {
+    return PathText(TextPath(opt.settingsPath).parent_path() / "bezels");
+}
+
 // The custom soundtrack's folder: the one the launcher chose, or "soundtrack" beside settings.ini
 std::string Port::SoundtrackFolder() const {
     if (!opt.soundtrack.empty()) {
@@ -402,6 +440,70 @@ std::string Port::SoundtrackFolder() const {
         return "";
     }
     return PathText(TextPath(opt.settingsPath).parent_path() / "soundtrack");
+}
+
+// The Dreamcast version's music (Game::dreamcastMusic): its files in the folder "dreamcast" beside settings.ini, copied
+// there from the player's disc image the first time (looked for in the soundtrack folder the launcher chose, beside the
+// ROM set, and beside settings.ini), with a soundtrack.ini naming each song's file. Empty, and `note` saying why, when
+// they are not there and no image had them.
+std::string Port::DreamcastFolder(std::string &note) {
+    if (opt.settingsPath.empty()) {
+        return "";
+    }
+    const std::filesystem::path dir = TextPath(opt.settingsPath).parent_path() / "dreamcast";
+    std::vector<std::string> files;
+    std::string ini = "; Made by the custom soundtrack's \"Dreamcast arranged\": each song and its files, from the Dreamcast disc\n"
+                      "volume = " + std::to_string(TheGame().dreamcastVolume) + "\n";
+    bool all = true;
+    std::error_code error;
+    for (const cps3recomp::Game::DiscSong &one : TheGame().dreamcastMusic) {
+        const std::string name = std::filesystem::path(one.file).filename().string();
+        if (std::find(files.begin(), files.end(), one.file) == files.end()) {
+            files.push_back(one.file);
+            all = all && std::filesystem::exists(dir / name, error);
+        }
+        ini += std::string("[") + one.song + "]\nfile" + (one.variant ? std::to_string(one.variant) : std::string()) + " = " + name + "\n";
+    }
+    if (!all) {
+        std::vector<std::string> places = {SoundtrackFolder()};
+        places.push_back(PathText(TextPath(RomPath()).parent_path()));
+        places.push_back(PathText(TextPath(opt.settingsPath).parent_path()));
+        // (the first disc image's trouble is the one told: a ROM set's zip, which holds no disc, is passed over)
+        std::string why, which;
+        for (const std::string &place : places) {
+            for (const std::string &image : DiscImagesIn(place)) {
+                std::string error_;
+                if (CopyFromDisc(image, files, PathText(dir), error_)) {
+                    fprintf(stderr, "dreamcast: the music copied from %s\n", image.c_str());
+                    note = "Dreamcast music copied from " + PathText(TextPath(image).filename()) + ".";
+                    all = true;
+                    break;
+                }
+                fprintf(stderr, "dreamcast: %s: %s\n", image.c_str(), error_.c_str());
+                if (which.empty() && LooksLikeDisc(image)) {
+                    which = PathText(TextPath(image).filename());
+                    why = error_;
+                }
+            }
+            if (all) {
+                break;
+            }
+        }
+        if (!all) {
+            const std::string folder = PathText(TextPath(RomPath()).parent_path());
+            note = which.empty() ? "Dreamcast music: no disc image (.cue, .gdi or .zip) found beside the ROM set, in " + folder +
+                                       ". Playing the board's music."
+                                 : "Dreamcast music: " + which + ": " + why + ". Playing the board's music.";
+            fprintf(stderr, "dreamcast: no disc image with the music; looked in %s, %s and %s\n", places[0].c_str(), places[1].c_str(),
+                    places[2].c_str());
+            return "";
+        }
+    }
+    std::vector<uint8_t> have;
+    if (!ReadFile(PathText(dir / "soundtrack.ini"), have) || std::string(have.begin(), have.end()) != ini) {
+        WriteFile(PathText(dir / "soundtrack.ini"), ini.data(), ini.size());
+    }
+    return PathText(dir);
 }
 
 // The feature switched on or off (in the menu, or at the start): the folder looked in again
@@ -415,6 +517,25 @@ void Port::SoundtrackFollow() {
     if (!soundtrackOn) {
         machine->soundtrack.Replace({});
         machine->soundtrack.state.song = -1; // (the board's music again, at once)
+        return;
+    }
+    if (value == 3) {
+        std::string note;
+        const std::string folder = DreamcastFolder(note);
+        if (folder.empty()) {
+            menu.Note(note);
+            soundtrackOn = false;
+            machine->soundtrack.Replace({});
+            machine->soundtrack.state.song = -1;
+            return;
+        }
+        const int found = soundtrack.Open(folder, machine->soundtrack, false);
+        if (!note.empty()) {
+            menu.Note(note); // (copied just now: said once)
+        }
+        if (opt.stats || getenv("CPS3RECOMP_SOUNDTRACK_LOG")) {
+            fprintf(stderr, "soundtrack: %d songs from the Dreamcast's, %s\n", found, folder.c_str());
+        }
         return;
     }
     const std::string folder = SoundtrackFolder();

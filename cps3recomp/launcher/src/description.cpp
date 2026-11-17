@@ -262,6 +262,7 @@ launcher::Description describe_game(const GameInfo& game) {
     d.online.list_argument = "--net-list";
     d.online.name_argument = "--net-name";
     d.online.arcade_argument = "--net-arcade";
+    d.online.delay_argument = "--net-delay";
     d.online.invite_argument = "--net-invite";
     d.online.invite_name_argument = "--net-invite-name";
 #ifndef LAUNCHER_COLLECTION
