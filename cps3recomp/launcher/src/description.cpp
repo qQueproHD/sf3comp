@@ -11,9 +11,12 @@
 
 #include "../../machine/romset.h"
 #include "../../port/bindings.h"
+#include "../../port/dreamcast.h"
 #include "../../port/netplay.h"
 
 #include <algorithm>
+#include <chrono>
+#include <map>
 #include <deque>
 #include <filesystem>
 #include <string>
@@ -214,6 +217,40 @@ launcher::Description describe_game(const GameInfo& game) {
     d.file_filter = {"ROM set (zip)", "zip"};
     d.file_key = "rom";
     d.check = [game](const std::string& path) { return check_rom_set(game, path); };
+    // (the custom soundtrack's "Dreamcast arranged", its fourth choice (3rd Strike's: port/main.cpp), only with the
+    // Dreamcast's music there: copied already into the game's folder (16 stages, three rounds each: games/sfiii3's
+    // music.cpp), or a disc image beside the ROM set or in the game's folder, where the game looks for one
+    // (Port::DreamcastThere). Asked while drawing: looked again every two seconds at most)
+    d.choice_shown = [](const std::string& feature, int choice, const std::string& file, const std::filesystem::path& folder) {
+        if (feature != "custom_soundtrack" || choice != 3) {
+            return true;
+        }
+        struct Seen {
+            std::chrono::steady_clock::time_point at;
+            bool there = false;
+        };
+        static std::map<std::string, Seen> seen;
+        const std::string key = file + "|" + folder.string();
+        const auto now = std::chrono::steady_clock::now();
+        const auto known = seen.find(key);
+        if (known != seen.end() && now - known->second.at < std::chrono::seconds(2)) {
+            return known->second.there;
+        }
+        constexpr int kDreamcastFiles = 48;
+        int copied = 0;
+        std::error_code error;
+        for (std::filesystem::directory_iterator each(folder / "dreamcast", error); !error && each != std::filesystem::directory_iterator();
+             each.increment(error)) {
+            std::string ending = each->path().extension().string();
+            std::transform(ending.begin(), ending.end(), ending.begin(), [](unsigned char c) { return static_cast<char>(tolower(c)); });
+            copied += ending == ".adx";
+        }
+        const bool there = copied >= kDreamcastFiles ||
+                           (!file.empty() && port::DiscImageIn(port::DiscPathText(port::DiscTextPath(file).parent_path()))) ||
+                           port::DiscImageIn(port::DiscPathText(folder));
+        seen[key] = {now, there};
+        return there;
+    };
     d.check_on_thread = true; // (reading 80 MB and finding the cipher's keys takes a moment)
     d.find_nearby = [game](const std::filesystem::path& folder) { return rom_set_nearby(game, folder); };
     d.candidates = [game](const std::filesystem::path& folder) { return rom_set_candidates(game, folder); };

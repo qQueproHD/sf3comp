@@ -325,6 +325,12 @@ bool Port::Init(std::string &error) {
     SetMachine(machine.get());
     RegisterGame();
     RegisterPortFeatures();
+    // (the custom soundtrack's "Dreamcast arranged" (its fourth choice) only with the Dreamcast's music there)
+    if (!TheGame().dreamcastMusic.empty()) {
+        menu.choiceAvailable = [this](const std::string &feature, int choice) {
+            return feature != "custom_soundtrack" || choice != 3 || DreamcastThere();
+        };
+    }
     if (TheGame().fighting) {
         menu.replaysPage = true;
         replay.folder = PlayerFolder().empty() ? "" : PlayerFolder() + "replays/"; // (online, the joining side's eepromPath goes)
@@ -504,6 +510,23 @@ std::string Port::DreamcastFolder(std::string &note) {
         WriteFile(PathText(dir / "soundtrack.ini"), ini.data(), ini.size());
     }
     return PathText(dir);
+}
+
+// Whether the Dreamcast music can be had: copied already (every file of Game::dreamcastMusic in the folder), or a disc
+// image where DreamcastFolder looks for one. The menu offers "Dreamcast arranged" only then (and the launcher, by
+// the same look: launcher/src/description.cpp)
+bool Port::DreamcastThere() {
+    if (TheGame().dreamcastMusic.empty() || opt.settingsPath.empty()) {
+        return false;
+    }
+    const std::filesystem::path dir = TextPath(opt.settingsPath).parent_path() / "dreamcast";
+    std::error_code error;
+    bool all = true;
+    for (const cps3recomp::Game::DiscSong &one : TheGame().dreamcastMusic) {
+        all = all && std::filesystem::exists(dir / std::filesystem::path(one.file).filename(), error);
+    }
+    return all || DiscImageIn(SoundtrackFolder()) || DiscImageIn(PathText(TextPath(RomPath()).parent_path())) ||
+           DiscImageIn(PathText(TextPath(opt.settingsPath).parent_path()));
 }
 
 // The feature switched on or off (in the menu, or at the start): the folder looked in again

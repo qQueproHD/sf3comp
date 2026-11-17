@@ -4,8 +4,6 @@
 // Files from a Dreamcast disc image: dreamcast.h.
 #include "dreamcast.h"
 
-#include "port.h"
-
 #include <zlib.h>
 
 #include <algorithm>
@@ -21,6 +19,19 @@
 namespace port {
 
 namespace {
+    // (a path as UTF-8 text and back, as port.h has them: the launcher builds this file too, without the port)
+    std::string PathText(const std::filesystem::path &path) {
+        const auto text = path.u8string();
+        return std::string(text.begin(), text.end());
+    }
+    std::filesystem::path TextPath(const std::string &text) {
+#if __cplusplus >= 202002L
+        return std::filesystem::path(std::u8string(text.begin(), text.end()));
+#else
+        return std::filesystem::u8path(text); // (the launcher is C++17)
+#endif
+    }
+
     constexpr uint32_t kHighDensity = 45000; // (the high-density area's first sector: the file system's sector numbers count from 0)
 
     std::string Upper(std::string text) {
@@ -451,6 +462,22 @@ bool LooksLikeDisc(const std::string &image) {
     for (const Zip::Entry &e : zip.entries) {
         const std::string name = Lower(e.name);
         if (name.size() > 4 && (name.compare(name.size() - 4, 4, ".cue") == 0 || name.compare(name.size() - 4, 4, ".gdi") == 0)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+std::string DiscPathText(const std::filesystem::path &path) {
+    return PathText(path);
+}
+std::filesystem::path DiscTextPath(const std::string &text) {
+    return TextPath(text);
+}
+
+bool DiscImageIn(const std::string &folder) {
+    for (const std::string &image : DiscImagesIn(folder)) {
+        if (LooksLikeDisc(image)) {
             return true;
         }
     }

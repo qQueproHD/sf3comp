@@ -53,6 +53,9 @@ public:
     std::vector<ReplayRow> replays;
     bool replaysPage = false;      // (the game keeps replays: the page is there)
     std::function<void()> onOpen;  // (before the menu is made, each time it opens: the port lists the replays)
+    // (whether a choice can be had now, asked each time the menu opens: one that is not is passed over by Left, Right and
+    // Confirm, as one the launcher leaves out of the menu; the Dreamcast music without its disc. Not given: all can)
+    std::function<bool(const std::string &feature, int choice)> choiceAvailable;
     size_t Replay() const {
         return m_replay;
     }
