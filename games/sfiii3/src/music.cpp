@@ -17,9 +17,11 @@
 #include "game.h"
 #include "lift.h"
 #include "system.h"
+#include "sfiii3.h"
 
 #include <array>
 #include <cstdint>
+#include <cstdio>
 #include <iterator>
 #include <string>
 #include <vector>
@@ -152,31 +154,46 @@ void RegisterMusic(Game &game) {
         {40, "stage_q", "Q's stage"},
         {41, "stage_q_2", "... the same, later in the match"},
     };
-    // The Dreamcast version's arranged music (the custom soundtrack's "Dreamcast arranged": port/dreamcast.h). Its disc has
-    // three files to a stage, in this table's order of stages but for Q's (SOUND/01_A_NYC.ADX..48_C_GRE.ADX): A the
-    // board's first song, B its second (later in the match), C the arrangement (A's loop points, the same tune made
-    // again); found by comparing each with the board's own music, recorded in fights (mel spectrograms: A and B the
-    // best match of every stage's first and second song heard, C close behind A). The arrangement plays both halves.
+    // The Dreamcast version's music (the custom soundtrack's "Dreamcast arranged": port/dreamcast.h). Its disc has three
+    // files to a stage, in this table's order of stages but for Q's (SOUND/01_A_NYC.ADX..48_C_GRE.ADX), one for each
+    // round: A the first (the board's first song: round 1), B the second (its second song: round 2), C the third
+    // (where the board plays its first song again: round 3 on, songVariant). Matched to the board's songs by comparing
+    // recordings of its fights (mel spectrograms); the rounds, from a player of the Dreamcast version: its rounds 1-3
+    // each loop a part of their own, and only C played for all of them before 2026-11-17. Mastered some 3.3 times
+    // louder than the board plays its stage music (the median of 21 files against the board's own, recorded): 30%.
     static const struct {
-        const char *stage, *file;
-    } kArranged[] = {
-        {"stage_nyc", "03_C_NYC"}, {"stage_russia", "06_C_ROS"}, {"stage_hugo", "09_C_GEM"}, {"stage_chun_li", "12_C_CHI"},
-        {"stage_ryu", "15_C_SHI"}, {"stage_ibuki", "18_C_KYO"}, {"stage_makoto", "21_C_DOJ"}, {"stage_akuma", "24_C_YAM"},
-        {"stage_elena", "27_C_AFR"}, {"stage_brazil", "30_C_BRA"}, {"stage_dudley", "33_C_LON"}, {"stage_hong_kong", "36_C_HON"},
-        {"stage_remy", "39_C_FRA"}, {"stage_urien", "45_C_MEX"}, {"stage_gill", "48_C_GRE"}, {"stage_q", "42_C_Q"},
+        const char *stage;
+        int first; // (its A file's number: B and C follow)
+        const char *place;
+    } kStages[] = {
+        {"stage_nyc", 1, "NYC"},    {"stage_russia", 4, "ROS"},  {"stage_hugo", 7, "GEM"},     {"stage_chun_li", 10, "CHI"},
+        {"stage_ryu", 13, "SHI"},   {"stage_ibuki", 16, "KYO"},  {"stage_makoto", 19, "DOJ"},  {"stage_akuma", 22, "YAM"},
+        {"stage_elena", 25, "AFR"}, {"stage_brazil", 28, "BRA"}, {"stage_dudley", 31, "LON"},  {"stage_hong_kong", 34, "HON"},
+        {"stage_remy", 37, "FRA"},  {"stage_urien", 43, "MEX"},  {"stage_gill", 46, "GRE"},    {"stage_q", 40, "Q"},
     };
-    static std::vector<std::string> names; // (the strings the table points at)
-    names.clear();
-    for (const auto &one : kArranged) {
-        names.push_back(one.stage);
-        names.push_back(std::string(one.stage) + "_2");
-        names.push_back(std::string("SOUND/") + one.file + ".ADX");
+    static std::vector<std::string> names; // (the strings the table points at: made once, never changed)
+    if (names.empty()) {
+        for (const auto &one : kStages) {
+            names.push_back(one.stage);
+            names.push_back(std::string(one.stage) + "_2");
+            for (int round = 0; round < 3; round++) {
+                char file[40];
+                snprintf(file, sizeof(file), "SOUND/%02d_%c_%s.ADX", one.first + round, 'A' + round, one.place);
+                names.push_back(file);
+            }
+        }
     }
     game.dreamcastMusic.clear();
-    for (size_t n = 0; n < std::size(kArranged); n++) {
-        game.dreamcastMusic.push_back({names[n * 3].c_str(), names[n * 3 + 2].c_str()});
-        game.dreamcastMusic.push_back({names[n * 3 + 1].c_str(), names[n * 3 + 2].c_str()});
+    for (size_t n = 0; n < std::size(kStages); n++) {
+        const std::string *at = &names[n * 5];
+        game.dreamcastMusic.push_back({at[0].c_str(), at[2].c_str(), 0});
+        game.dreamcastMusic.push_back({at[1].c_str(), at[3].c_str(), 0});
+        game.dreamcastMusic.push_back({at[0].c_str(), at[4].c_str(), 3});
     }
+    game.dreamcastVolume = 30;
+    // (a stage's first song asked for in round 3 or later: its third file. The round's number, from 0, is set as the
+    // round is set up, before its song is asked for)
+    game.songVariant = [](uint16_t song) { return song >= 10 && song <= 41 && (song & 1) == 0 && Ram8(sfiii3::kRoundNumber) >= 2 ? 3 : 0; };
     game.dreamcastDisc = "Street Fighter III: 3rd Strike, Dreamcast";
     std::vector<uint16_t> songs;
     for (uint16_t n = 1; n <= 49; n++) {

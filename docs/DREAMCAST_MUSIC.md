@@ -20,17 +20,20 @@ CDI images are not read (they are usually re-compressed and missing parts of the
 2. On the launcher's Features page (3rd Strike, **Sound**), or in the in-game menu's Sound page, set
    **Custom soundtrack** to **Dreamcast arranged**.
 3. Start a fight. The first time, the arranged tracks are copied off the disc into a `dreamcast` folder beside the
-   game's settings (about 60 MB, a few seconds). After that the disc image isn't needed, and they just play.
+   game's settings (about 170 MB, a few seconds). After that the disc image isn't needed, and they just play.
 
 If it doesn't work, the arcade music plays and the in-game menu says why the next time it opens: no disc image found,
 or which image was found and what was wrong with it (most often its track files aren't in the same folder as the
 `.cue` or `.gdi`, which is only an index of them). The game's log (launcher → Show the log) has the same, on lines
-starting `dreamcast:`. A `dreamcast` folder with 16 `.ADX` files beside the game's settings means the copy worked.
+starting `dreamcast:`. A `dreamcast` folder with 48 `.ADX` files beside the game's settings means the copy worked.
 
 ## What changes
 
-- **Every stage theme** is the Dreamcast arrangement, looping where the Dreamcast loops it. The arcade has two songs
-  for a stage (the second comes later in the match); the arrangement plays for both.
+- **Every stage theme** is the Dreamcast's, round by round as the Dreamcast plays it: its own version for round 1,
+  round 2 and round 3 (and any round after), each looping where the Dreamcast loops it. (The arcade has two: round 3
+  plays round 1's again.)
+- They play at the arcade music's loudness: the Dreamcast's files are mastered about three times louder, so they are
+  turned down to match (`volume = 30` in the `dreamcast` folder's `soundtrack.ini`).
 - **Everything else** (title, character select, versus, winner and so on) stays the arcade's own music.
 
 ## Guest stages
@@ -46,7 +49,7 @@ in the in-game menu: the music changes at once.
 
 ## How the tracks were matched
 
-The disc holds three files for each stage (`SOUND/NN_A_…`, `NN_B_…`, `NN_C_…` in the `.ADX` format). Comparing them
-with recordings of the arcade's own music showed that **A** is the arcade's first song for that stage, **B** its second,
-and **C** the arrangement, which is what this plays. The table is in `games/sfiii3/src/music.cpp`. Urien's theme
+The disc holds three files for each stage (`SOUND/NN_A_…`, `NN_B_…`, `NN_C_…` in the `.ADX` format). They are the
+Dreamcast's music for **rounds 1, 2 and 3**; comparing them with recordings of the arcade's own music matched each
+stage's set to its stage, A to the arcade's first song and B to its second (which the arcade plays in round 2). The table is in `games/sfiii3/src/music.cpp`. Urien's theme
 (`MEX`) was matched less surely than the others: if it sounds like another character's, please open an issue.

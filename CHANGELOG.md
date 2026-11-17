@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Dreamcast arranged music, fixed** (player reports): each round now has its own Dreamcast version (rounds 1, 2 and
+  3, as the Dreamcast plays them); only the round-3 version played before, for every round. And it plays at the
+  arcade music's loudness (it was about three times louder than the sound effects and the board's music). The first
+  start after updating copies the other rounds' files from the disc image, which has to be beside the ROM set still.
+- The custom soundtrack: a song in soundtrack.ini may name other files for other moments (`file2`, `file3`...), as
+  the game's sources choose them (3rd Strike: `file3` for a stage's song in round 3 and later).
 - Dreamcast arranged music: when it can't be copied, the in-game menu says why the next time it opens (which disc
   image, and what was wrong: most often its track files missing beside the .cue or .gdi), and says so when it was.
   docs/DREAMCAST_MUSIC.md no longer says guest stages play their own music with it: they play the arrangement too.
