@@ -110,6 +110,70 @@ namespace {
         const SDL_DisplayID display = ChosenDisplay();
         SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED_DISPLAY(display), SDL_WINDOWPOS_CENTERED_DISPLAY(display));
     }
+
+    // Full screen as the Display page's "Full screen as" says (BorderlessFullScreen, issue #20): SDL's full screen, or
+    // a window with no edges as large as the chosen screen (for what needs a window: NVIDIA RTX HDR, overlays). Where
+    // and how large the window was before is kept, to put it back
+    struct Borderless {
+        bool on = false, maximized = false;
+        int x = 0, y = 0, width = 0, height = 0;
+    } g_borderless;
+    bool IsFullScreen(SDL_Window *window) {
+        return (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) || g_borderless.on;
+    }
+    // (the window made edgeless and as large as the chosen screen, all of it)
+    void CoverScreen(SDL_Window *window) {
+        SDL_Rect bounds;
+        if (!SDL_GetDisplayBounds(ChosenDisplay(), &bounds)) {
+            fprintf(stderr, "borderless window: %s\n", SDL_GetError());
+            return;
+        }
+        SDL_SetWindowBordered(window, false);
+        SDL_SetWindowPosition(window, bounds.x, bounds.y);
+        SDL_SetWindowSize(window, bounds.w, bounds.h);
+        SDL_SyncWindow(window);
+    }
+    // Full screen (`full`) or a window again, either way as chosen now; a full screen of the other way becomes this one
+    void GoFullScreen(SDL_Window *window, bool full) {
+        if (full == IsFullScreen(window) && (!full || BorderlessFullScreen() == g_borderless.on)) {
+            return;
+        }
+        if (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) {
+            SDL_SetWindowFullscreen(window, false);
+            SDL_SyncWindow(window);
+        }
+        if (g_borderless.on) {
+            g_borderless.on = false;
+            SDL_SetWindowBordered(window, true);
+            SDL_SetWindowSize(window, g_borderless.width, g_borderless.height);
+            SDL_SetWindowPosition(window, g_borderless.x, g_borderless.y);
+            if (g_borderless.maximized) {
+                SDL_MaximizeWindow(window);
+            }
+            SDL_SyncWindow(window);
+        }
+        if (!full) {
+            return;
+        }
+        if (BorderlessFullScreen()) {
+            g_borderless.maximized = SDL_GetWindowFlags(window) & SDL_WINDOW_MAXIMIZED;
+            if (g_borderless.maximized) {
+                SDL_RestoreWindow(window);
+                SDL_SyncWindow(window);
+            }
+            SDL_GetWindowPosition(window, &g_borderless.x, &g_borderless.y);
+            SDL_GetWindowSize(window, &g_borderless.width, &g_borderless.height);
+            g_borderless.on = true;
+            CoverScreen(window);
+        } else {
+            SetFullscreenMode(window);
+            SDL_SetWindowFullscreen(window, true);
+        }
+    }
+#else
+    bool IsFullScreen(SDL_Window *window) {
+        return SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN;
+    }
 #endif
 
     bool KeyBound(SDL_Scancode key) {
@@ -203,7 +267,7 @@ namespace {
     }
     void KeepPlacement(SDL_Window *window) {
         const std::filesystem::path file = PlacementFile();
-        if (file.empty() || (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN)) {
+        if (file.empty() || IsFullScreen(window)) {
             return;
         }
         Placement at;
@@ -259,7 +323,11 @@ int RunWindowed(Port &port) {
     // (the picture's shape: the board's 384 x 224 shown 4:3 unless the Display page says otherwise, and as
     // much wider as the widest picture the game's sources may ask for; 4:3 for a picture that fills it)
     const int columns = TheGame().widestPicture ? std::clamp(TheGame().widestPicture(), +Video::kWidth, +Video::kMaxWidth) : Video::kWidth;
-    auto windowShape = [](int across) { return PictureShape(across, Video::kHeight, DisplayShape(), 4.0f / 3.0f * across / Video::kWidth); };
+    // (with the Display page's bezels, 16:9 at least: the picture in the middle and the bezels beside it, issue #8)
+    auto windowShape = [](int across) {
+        const float picture = PictureShape(across, Video::kHeight, DisplayShape(), 4.0f / 3.0f * across / Video::kWidth);
+        return DisplayBezel() != Bezel::Off && DisplayShape() != Shape::Fill ? std::max(picture, 16.0f / 9.0f) : picture;
+    };
     // (in a Multi game run, a window where the game before's was: a full screen one is full screen as asked)
     Placement placed;
     const bool carried = !MultiGame().empty() && TakePlacement(placed) && !port.opt.fullscreen;
@@ -286,8 +354,10 @@ int RunWindowed(Port &port) {
         fullscreen = true; // (a phone's whole screen, its bars hidden)
         const bool fullscreenNow = true;
 #else
-        // (the arcade's resolution: made a window, given its mode, then made full screen)
-        const bool fullscreenNow = fullscreen && !ArcadeResolution();
+        // (the arcade's resolution: made a window, given its mode, then made full screen; a borderless window: made a
+        // window, then made to cover the screen)
+        const bool borderless = fullscreen && BorderlessFullScreen();
+        const bool fullscreenNow = fullscreen && !ArcadeResolution() && !borderless;
 #endif
         SDL_SetNumberProperty(properties, SDL_PROP_WINDOW_CREATE_FLAGS_NUMBER,
                               SDL_WINDOW_RESIZABLE | (fullscreenNow ? SDL_WINDOW_FULLSCREEN : 0) | (at && at->maximized ? SDL_WINDOW_MAXIMIZED : 0) |
@@ -297,7 +367,14 @@ int RunWindowed(Port &port) {
 #ifndef __ANDROID__
         if (made) {
             SetFullscreenMode(made);
-            if (fullscreen && !fullscreenNow) {
+            if (borderless) {
+                // (made again, for or without a shader: as large as the screen again, where it was before kept)
+                if (g_borderless.on) {
+                    CoverScreen(made);
+                } else {
+                    GoFullScreen(made, true);
+                }
+            } else if (fullscreen && !fullscreenNow) {
                 SDL_SetWindowFullscreen(made, true);
             }
         }
@@ -355,7 +432,7 @@ int RunWindowed(Port &port) {
             SDL_GetWindowPosition(window, &at.x, &at.y);
             SDL_GetWindowSize(window, &width, &at.height);
             at.maximized = SDL_GetWindowFlags(window) & SDL_WINDOW_MAXIMIZED;
-            const bool fullscreen = SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN;
+            const bool fullscreen = IsFullScreen(window);
             SDL_DestroyWindow(window);
             window = makeWindow(false, &at, width, at.height, fullscreen);
             if (!window) {
@@ -417,7 +494,7 @@ int RunWindowed(Port &port) {
         SDL_GetWindowPosition(window, &at.x, &at.y);
         SDL_GetWindowSize(window, &width, &at.height);
         at.maximized = SDL_GetWindowFlags(window) & SDL_WINDOW_MAXIMIZED;
-        const bool fullscreen = SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN;
+        const bool fullscreen = IsFullScreen(window);
         presenter.Close();
         SDL_DestroyWindow(window);
         preset = next;
@@ -713,7 +790,11 @@ int RunWindowed(Port &port) {
                     port.test = !port.test; // the operator's test switch
                 } else if (ev.key.scancode == SDL_SCANCODE_F11 ||
                            (ev.key.scancode == SDL_SCANCODE_RETURN && (ev.key.mod & SDL_KMOD_ALT))) {
-                    SDL_SetWindowFullscreen(window, !(SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN));
+#ifdef __ANDROID__
+                    SDL_SetWindowFullscreen(window, !IsFullScreen(window));
+#else
+                    GoFullScreen(window, !IsFullScreen(window));
+#endif
                 }
                 break;
             case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
@@ -920,10 +1001,12 @@ int RunWindowed(Port &port) {
         {
             static int shownColumns = columns, shownSize = scale;
             static Shape shownShape = DisplayShape();
+            static bool shownBezels = DisplayBezel() != Bezel::Off;
             const int now = TheGame().widestPicture ? std::clamp(TheGame().widestPicture(), +Video::kWidth, +Video::kMaxWidth) : columns;
             const int size = port.opt.scale > 0 ? port.opt.scale : WindowSize();
-            if (now != shownColumns || DisplayShape() != shownShape || size != shownSize) {
-                if (!(SDL_GetWindowFlags(window) & (SDL_WINDOW_FULLSCREEN | SDL_WINDOW_MAXIMIZED))) {
+            const bool bezels = DisplayBezel() != Bezel::Off;
+            if (now != shownColumns || DisplayShape() != shownShape || size != shownSize || bezels != shownBezels) {
+                if (!IsFullScreen(window) && !(SDL_GetWindowFlags(window) & SDL_WINDOW_MAXIMIZED)) {
                     int windowWidth = 0, windowHeight = 0;
                     SDL_GetWindowSize(window, &windowWidth, &windowHeight);
                     if (size != shownSize) {
@@ -934,6 +1017,7 @@ int RunWindowed(Port &port) {
                 shownColumns = now;
                 shownShape = DisplayShape();
                 shownSize = size;
+                shownBezels = bezels;
             }
         }
         followShader();
@@ -941,23 +1025,19 @@ int RunWindowed(Port &port) {
         // The Display page's screen or full screen mode changed: the window to that screen, full screen in that mode
         if (window) {
             static int shownScreen = DisplayScreen();
-            static bool shownArcade = ArcadeResolution();
-            if (DisplayScreen() != shownScreen || ArcadeResolution() != shownArcade) {
-                const bool full = SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN;
-                if (full) {
-                    SDL_SetWindowFullscreen(window, false);
-                    SDL_SyncWindow(window);
-                }
+            static bool shownArcade = ArcadeResolution(), shownBorderless = BorderlessFullScreen();
+            if (DisplayScreen() != shownScreen || ArcadeResolution() != shownArcade || BorderlessFullScreen() != shownBorderless) {
+                const bool full = IsFullScreen(window);
+                GoFullScreen(window, false);
                 if (DisplayScreen() != shownScreen) {
                     CentreOnScreen(window);
                 }
                 SetFullscreenMode(window);
-                if (full) {
-                    SDL_SetWindowFullscreen(window, true);
-                }
+                GoFullScreen(window, full);
                 SDL_SyncWindow(window);
                 shownScreen = DisplayScreen();
                 shownArcade = ArcadeResolution();
+                shownBorderless = BorderlessFullScreen();
             }
         }
 #endif
@@ -973,6 +1053,28 @@ int RunWindowed(Port &port) {
         // (full screen in the arcade's resolution: the picture fills the screen's mode, whose shape the monitor gives it)
         const bool arcadeScreen = window && (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) && SDL_GetWindowFullscreenMode(window);
         const SDL_FRect where = FitPicture(width, height, port.ShownWidth(), Video::kHeight, arcadeScreen ? Shape::Fill : DisplayShape(), DisplayScaling());
+        // (the Display page's bezels under the picture: made again when they, the window's size or the picture's place
+        // change; none on the arcade monitor, which the picture fills)
+        {
+            static Bezel madeBezel = Bezel::Off;
+            static int madeWidth = 0, madeHeight = 0;
+            static SDL_FRect madeWhere = {};
+            const Bezel bezel = arcadeScreen ? Bezel::Off : DisplayBezel();
+            if (bezel != madeBezel || width != madeWidth || height != madeHeight || where.x != madeWhere.x || where.y != madeWhere.y ||
+                where.w != madeWhere.w || where.h != madeWhere.h) {
+                std::vector<uint32_t> bezelPixels;
+                int bezelWidth = 0, bezelHeight = 0;
+                if (MakeBezel(bezel, width, height, where, port.BezelFolder(), bezelPixels, bezelWidth, bezelHeight)) {
+                    presenter.SetBackdrop(bezelPixels.data(), bezelWidth, bezelHeight);
+                } else {
+                    presenter.SetBackdrop(nullptr, 0, 0);
+                }
+                madeBezel = bezel;
+                madeWidth = width;
+                madeHeight = height;
+                madeWhere = where;
+            }
+        }
         // (the menu compact where the Arcade monitor page asks for it, or on the arcade monitor itself; drawn again when
         // that changes)
         if (const bool compact = CompactMenuChosen() || arcadeScreen; compact != port.menu.Compact()) {

@@ -307,7 +307,7 @@ void Shading::Close() {
             gl.DeleteProgram(m_overlayProgram);
             gl.DeleteVertexArrays(1, &m_overlayArray);
         }
-        for (GLuint *texture : {&m_picture, &m_drawn, &m_readout, &m_overlay}) {
+        for (GLuint *texture : {&m_picture, &m_drawn, &m_readout, &m_layers[kOverlay].texture, &m_layers[kBackdrop].texture}) {
             if (*texture) {
                 gl.DeleteTextures(1, texture);
             }
@@ -323,8 +323,8 @@ void Shading::Close() {
     m_context = nullptr;
     m_preset.clear();
     m_picture = m_drawn = m_readout = m_pictureFrame = m_drawnFrame = m_readoutFrame = 0;
-    m_overlay = m_overlayProgram = m_overlayArray = 0;
-    m_overlayWidth = m_overlayHeight = 0;
+    m_overlayProgram = m_overlayArray = 0;
+    m_layers[kOverlay] = m_layers[kBackdrop] = {};
     m_width = m_height = m_drawnWidth = m_drawnHeight = 0;
 }
 
@@ -394,6 +394,7 @@ void Shading::Show(const uint32_t *pixels, int width, int height, const SDL_FRec
     gl.BindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
     gl.ClearColor(0, 0, 0, 1);
     gl.Clear(GL_COLOR_BUFFER_BIT);
+    DrawLayer(kBackdrop, windowWidth, windowHeight); // (the bezels: the picture over them)
     // (the window's rows count up from its foot, and the picture's first row is its top)
     const int left = static_cast<int>(std::lround(where.x)), right = static_cast<int>(std::lround(where.x + where.w));
     const int top = windowHeight - static_cast<int>(std::lround(where.y)), foot = windowHeight - static_cast<int>(std::lround(where.y + where.h));
@@ -462,50 +463,51 @@ void Shading::Show(const uint32_t *pixels, int width, int height, const SDL_FRec
         gl.BlitFramebuffer(0, 0, width, height, left, top, right, foot, GL_COLOR_BUFFER_BIT, GL_LINEAR);
     }
     gl.BindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-    DrawOverlay(windowWidth, windowHeight);
+    DrawLayer(kOverlay, windowWidth, windowHeight);
     if (keepLast) {
         Keep();
     }
     SDL_GL_SwapWindow(m_window);
 }
 
-void Shading::SetOverlay(const uint32_t *pixels, int width, int height) {
+void Shading::SetLayer(Layer layer, const uint32_t *pixels, int width, int height) {
     if (!m_context) {
         return;
     }
     SDL_GL_MakeCurrent(m_window, m_context);
+    LayerTexture &made = m_layers[layer];
     if (!pixels) {
-        if (m_overlay) {
-            gl.DeleteTextures(1, &m_overlay);
+        if (made.texture) {
+            gl.DeleteTextures(1, &made.texture);
         }
-        m_overlay = 0;
-        m_overlayWidth = m_overlayHeight = 0;
+        made.texture = 0;
+        made.width = made.height = 0;
         return;
     }
-    if (!m_overlay || width != m_overlayWidth || height != m_overlayHeight) {
-        if (m_overlay) {
-            gl.DeleteTextures(1, &m_overlay);
+    if (!made.texture || width != made.width || height != made.height) {
+        if (made.texture) {
+            gl.DeleteTextures(1, &made.texture);
         }
-        gl.GenTextures(1, &m_overlay);
-        gl.BindTexture(GL_TEXTURE_2D, m_overlay);
+        gl.GenTextures(1, &made.texture);
+        gl.BindTexture(GL_TEXTURE_2D, made.texture);
         gl.TexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
         gl.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         gl.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         gl.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
         gl.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         gl.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
-        m_overlayWidth = width;
-        m_overlayHeight = height;
+        made.width = width;
+        made.height = height;
     }
-    gl.BindTexture(GL_TEXTURE_2D, m_overlay);
+    gl.BindTexture(GL_TEXTURE_2D, made.texture);
     gl.PixelStorei(GL_UNPACK_ALIGNMENT, 4);
     gl.PixelStorei(GL_UNPACK_ROW_LENGTH, width);
     gl.TexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
     gl.BindTexture(GL_TEXTURE_2D, 0);
 }
 
-void Shading::DrawOverlay(int windowWidth, int windowHeight) {
-    if (!m_overlay) {
+void Shading::DrawLayer(Layer layer, int windowWidth, int windowHeight) {
+    if (!m_layers[layer].texture) {
         return;
     }
     if (!m_overlayProgram) {
@@ -545,7 +547,7 @@ void Shading::DrawOverlay(int windowWidth, int windowHeight) {
     gl.UseProgram(m_overlayProgram);
     gl.BindVertexArray(m_overlayArray);
     gl.ActiveTexture(GL_TEXTURE0);
-    gl.BindTexture(GL_TEXTURE_2D, m_overlay);
+    gl.BindTexture(GL_TEXTURE_2D, m_layers[layer].texture);
     gl.Uniform1i(gl.GetUniformLocation(m_overlayProgram, "overlay"), 0);
     gl.Enable(GL_BLEND);
     gl.BlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
