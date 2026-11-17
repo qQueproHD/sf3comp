@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Each game's files on its page**: every game's page in the launcher has a **This game's files** card with that
+  game's folder (its settings, saves, save states and logs) and a **Show** button that opens it.
 - **Dreamcast arranged can only be chosen with the disc**: the launcher's Custom soundtrack dropdown and the in-game
   menu offer it only once a Dreamcast disc image is beside the ROM set (or in the game's folder), or its music has
   been copied already.
