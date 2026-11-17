@@ -115,7 +115,7 @@ if (NOT GAME_SOURCES)
     set(GAME_SOURCES ${CR}/runtime/no_game.cpp)
 endif ()
 set(PORT_SOURCES
-    ${CR}/port/main.cpp ${CR}/port/frontend_sdl.cpp ${CR}/port/present.cpp ${CR}/port/shading.cpp ${CR}/port/zoom.cpp
+    ${CR}/port/main.cpp ${CR}/port/frontend_sdl.cpp ${CR}/port/present.cpp ${CR}/port/bezel.cpp ${CR}/port/shading.cpp ${CR}/port/zoom.cpp
     ${CR}/port/replay.cpp ${CR}/port/menu.cpp ${CR}/port/hud.cpp ${CR}/port/touch.cpp ${CR}/port/netplay.cpp
     ${CR}/port/soundtrack.cpp ${CR}/port/decoders.cpp ${CR}/port/dreamcast.cpp ${CR}/port/native_gpu.cpp
     ${CR}/recomp-common/launcher/src/online.cpp ${CR}/recomp-common/launcher/src/run_program.cpp
