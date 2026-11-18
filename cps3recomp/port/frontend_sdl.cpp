@@ -814,6 +814,8 @@ int RunWindowed(Port &port) {
                     port.Key('k', kKeyRestart);
                 } else if (!port.menu.IsOpen() && ev.key.scancode == SDL_SCANCODE_BACKSLASH && !ev.key.repeat) {
                     port.Key('k', kKeyExtra);
+                } else if (ev.key.scancode == SDL_SCANCODE_F12 && !ev.key.repeat && (ev.key.mod & SDL_KMOD_ALT) && (ev.key.mod & SDL_KMOD_SHIFT)) {
+                    port.SaveReplay(); // (the instant replay: the last seconds played)
                 } else if (ev.key.scancode == SDL_SCANCODE_F12 && !ev.key.repeat && (ev.key.mod & SDL_KMOD_ALT)) {
                     port.RecordVideo(); // (the video recording: video_record.h)
                 } else if (ev.key.scancode == SDL_SCANCODE_F12 && !ev.key.repeat) {
@@ -1304,6 +1306,13 @@ int RunWindowed(Port &port) {
             }
         }
 
+        // (the instant replay being made, if it is: a few of its frames in the time this tick has to spare, a little
+        // over half of it; unthrottled or fast forward, 4 ms)
+        if (port.instant.making) {
+            const uint64_t now = SDL_GetTicksNS(), due = nextFrame + static_cast<uint64_t>(kFrameNs);
+            const bool paced = !port.opt.unthrottled && !FastForward();
+            port.ReplayMake(paced ? (due > now ? (due - now) / 1e6 * 0.6 : 0.0) : 4.0);
+        }
         if (!port.opt.unthrottled && !FastForward()) {
             nextFrame += static_cast<uint64_t>(kFrameNs);
             const uint64_t now = SDL_GetTicksNS();
@@ -1346,6 +1355,9 @@ int RunWindowed(Port &port) {
     }
     presenter.Close();
     SDL_DestroyWindow(window);
+    while (port.instant.making) { // (a replay being made, finished first)
+        port.ReplayMake(1000); // (no game to keep at speed any more)
+    }
     port.StopVideo(); // (a video being recorded finished: before SDL_Quit, which takes its sound converters with it)
     SDL_Quit();
     return 0;

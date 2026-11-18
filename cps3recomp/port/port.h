@@ -178,6 +178,55 @@ struct Port {
     // Each frame run while recording: its sound (the game's, as heard; and the custom soundtrack's, at its rate) and the
     // picture as screenshots take it, without the port's notices at the bottom
     void VideoFrame(const int16_t *sound, size_t soundFrames, const float *music, size_t musicFrames, int musicRate);
+    // The instant replay (cps2recomp's, video_record.h): the last seconds of play (the Video page's Replay length) kept
+    // as states a second apart and every frame's controls; Save replay (Alt+Shift+F12) plays them again into a video, a
+    // few frames in each tick beside the game, which goes on as it does. At each kept state the replay is put back to
+    // it, so that whatever a frame run again does differently (a save state loaded, the board reset) lasts a second at
+    // most. A CPS-3 state is about 10 MB (its 8 MB of character RAM), so the kept states share their unchanged 64 KB
+    // blocks with the one before (InstantState): about a megabyte a second. A guest stage's board (Machine::KeepStage),
+    // which a save state does not hold, is kept beside each state, and stepped in the replay as RunFrame steps it.
+    // (Not `replay`: that is the match replays', replay.h.)
+    struct InstantState {
+        static constexpr size_t kBlock = 64 * 1024;
+        std::vector<std::shared_ptr<const std::vector<uint8_t>>> blocks;
+        size_t size = 0;
+        // From a state; the blocks the same as `before`'s shared with it (none: all its own)
+        void From(const std::vector<uint8_t> &data, const InstantState *before);
+        void Into(std::vector<uint8_t> &data) const;
+    };
+    struct Instant {
+        struct Kept {
+            uint64_t frame = 0; // (the state before this frame ran)
+            InstantState state, stage;
+        };
+        struct Input {
+            uint16_t players[cps3recomp::Machine::kMaxPlayers] = {};
+            bool service = false, test = false;
+        };
+        std::deque<Kept> kept;    // (the oldest first)
+        std::deque<Input> inputs; // (every frame's since the oldest kept)
+        uint64_t inputsFrom = 0;  // (the frame inputs.front() is of)
+        // Being made: the states and controls taken when it was asked for, the replay's own machine and game as a
+        // state between ticks (and its stage board's), its next frame and the frame it ends before
+        bool making = false;
+        std::deque<Kept> from;
+        std::vector<Input> made;
+        uint64_t madeFrom = 0, at = 0, end = 0;
+        std::vector<uint8_t> state, stage;
+        int ticks = 0;                    // (the ticks it was made in, and their longest: said when it is saved)
+        double longest = 0, swapping = 0, total = 0; // (ms; swapping: the longest the machines' swap took, of a tick)
+        // (ms, as they have been lately: a tick's swap of the machines, and one of its frames, which decide whether the
+        // time a tick has to spare is enough; and the ticks passed over for want of it in a row)
+        double swapCost = 4, frameCost = 2;
+        int passed = 0;
+        VideoRecorder recorder;
+    } instant;
+    void ReplayKeep(const uint16_t *pressed); // (each frame, before it runs)
+    void SaveReplay();
+    // Each tick: frames of the replay being made, in about `budget` ms (the time the window's tick has to spare, as
+    // the frontend reckons it: none at all is taken when that is less than a swap and a frame, but for one tick in 30
+    // so that it ends; headless: 8 frames a tick, whatever they take)
+    void ReplayMake(double budget = 4);
     // One tick; true if the game ran (so that there is a new picture and sound)
     bool Tick();
     // The keys that work while playing: 'p' stops and starts, 'o' goes on by a frame, '-' and '=' change the

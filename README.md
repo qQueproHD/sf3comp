@@ -112,8 +112,8 @@ playable by either player.
   speed, the cheats, the board's own settings and test menu, every feature. Pure plays exactly as the board does;
   Enhanced (the default) adds free play, arcade timing, integer scaling and, in widescreen, invisible walls.
 - **Video recording**: what you play and hear saved as an MP4 that plays anywhere, the pixels sharp at 3 times the
-  board's size or more, the custom soundtrack too (Alt+F12, or the menu's **Game > Video** page)
-  ([more](docs/FEATURES.md#video-recording)).
+  board's size or more, the custom soundtrack too (Alt+F12, or the menu's **Game > Video** page); and **instant
+  replay**, the last 30 seconds saved after they happen (Alt+Shift+F12) ([more](docs/FEATURES.md#video-recording)).
 - **Controls**: keyboard, gamepad or arcade stick, every button changeable per player.
 - **A custom soundtrack**: your own music in place of the board's, by song or as a playlist.
 - **The Dreamcast version's arranged music** (3rd Strike): put your own disc image of the Dreamcast 3rd Strike (a .cue or

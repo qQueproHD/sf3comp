@@ -9,6 +9,10 @@
   the board has it), the endless battle's **Stages**. Settings already chosen stay as they are.
 - **The mouse in the in-game menu**: pointing at a row chooses it, a click does what Enter does, the right button goes
   back a page and the wheel goes up and down. The keypad's Enter confirms too.
+- **Instant replay** (cps2recomp's, every game): the Video page's **Save replay** (Alt+Shift+F12) saves the last 30
+  seconds just played as a video, with no recording started (**Replay length**: 30, 60 or 10 seconds, or off). The
+  game keeps a state every second and every frame's controls, and plays them again into the video beside the game,
+  in the time each frame has to spare, so the game goes on at its speed.
 - **Video recording** (cps2recomp's, every game): the in-game menu's **Game > Video** page. **Record video** (Alt+F12)
   records what you play and hear as an MP4 (H.264 and AAC, which plays anywhere) in `videos/` beside your saves, until
   you stop it: the picture as screenshots take it, larger (3 times the board's lines unless **Video size** says 2, 4
