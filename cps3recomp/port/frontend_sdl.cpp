@@ -784,6 +784,8 @@ int RunWindowed(Port &port) {
                     port.Key('k', kKeyRestart);
                 } else if (!port.menu.IsOpen() && ev.key.scancode == SDL_SCANCODE_BACKSLASH && !ev.key.repeat) {
                     port.Key('k', kKeyExtra);
+                } else if (ev.key.scancode == SDL_SCANCODE_F12 && !ev.key.repeat && (ev.key.mod & SDL_KMOD_ALT)) {
+                    port.RecordVideo(); // (the video recording: video_record.h)
                 } else if (ev.key.scancode == SDL_SCANCODE_F12 && !ev.key.repeat) {
                     port.Screenshot();
                 } else if (ev.key.scancode == SDL_SCANCODE_F2) {
@@ -1181,10 +1183,18 @@ int RunWindowed(Port &port) {
             }
             SDL_PutAudioStreamData(audio, made.data(), static_cast<int>(made.size() * sizeof(int16_t)));
         }
+        // (the video being recorded: the game's sound as heard; the soundtrack's below)
+        const bool recording = ran && port.recorder.Recording();
+        std::vector<int16_t> recorded;
+        if (recording) {
+            recorded = made;
+        }
         made.clear();
+        bool musicFresh = false;
         if (ran && port.soundtrackOn && port.soundtrack.Any()) {
             // (fed as the game's sound is: the game's time's worth each frame, kept a frame or two ahead of the device)
             port.soundtrack.Make(port.machine->soundtrack.state, !FastForward() && !port.hurry, musicMade);
+            musicFresh = true;
             if (!musicMade.empty()) {
                 const int rate = port.soundtrack.Rate();
                 if (!music) {
@@ -1214,6 +1224,10 @@ int RunWindowed(Port &port) {
                 SDL_SetAudioStreamFrequencyRatio(music, static_cast<float>(ratio));
                 SDL_PutAudioStreamData(music, musicMade.data(), static_cast<int>(musicMade.size() * sizeof(float)));
             }
+        }
+        if (recording) {
+            port.VideoFrame(recorded.data(), recorded.size() / 2, musicFresh ? musicMade.data() : nullptr, musicFresh ? musicMade.size() / 2 : 0,
+                            port.soundtrack.Rate());
         }
 
         // The frame drawn by the GPU from the native video interface (Presenter::ShowNative), where the machine made it
@@ -1294,6 +1308,7 @@ int RunWindowed(Port &port) {
     }
     presenter.Close();
     SDL_DestroyWindow(window);
+    port.StopVideo(); // (a video being recorded finished: before SDL_Quit, which takes its sound converters with it)
     SDL_Quit();
     return 0;
 }

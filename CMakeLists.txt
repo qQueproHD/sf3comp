@@ -115,12 +115,33 @@ if (NOT GAME_SOURCES)
     set(GAME_SOURCES ${CR}/runtime/no_game.cpp)
 endif ()
 set(PORT_SOURCES
-    ${CR}/port/main.cpp ${CR}/port/frontend_sdl.cpp ${CR}/port/present.cpp ${CR}/port/bezel.cpp ${CR}/port/shading.cpp ${CR}/port/zoom.cpp
+    ${CR}/port/main.cpp ${CR}/port/video_record.cpp ${CR}/port/frontend_sdl.cpp ${CR}/port/present.cpp ${CR}/port/bezel.cpp ${CR}/port/shading.cpp ${CR}/port/zoom.cpp
     ${CR}/port/replay.cpp ${CR}/port/menu.cpp ${CR}/port/hud.cpp ${CR}/port/touch.cpp ${CR}/port/netplay.cpp
     ${CR}/port/soundtrack.cpp ${CR}/port/decoders.cpp ${CR}/port/dreamcast.cpp ${CR}/port/native_gpu.cpp
     ${CR}/recomp-common/launcher/src/online.cpp ${CR}/recomp-common/launcher/src/run_program.cpp
     ${CR}/recomp-common/menu.cpp ${CR}/recomp-common/settings.cpp
     ${CR}/runtime/game.cpp ${CR}/runtime/system.cpp ${CR}/runtime/soundtrack.cpp ${CR}/runtime/spare.cpp ${CR}/fight/frames.cpp ${CR}/fight/training.cpp ${CR}/fight/session.cpp ${GAME_SOURCES})
+# The video recording's encoders (port/video_record.h), other projects' code compiled as it is: minih264 (H.264) and
+# minimp4 (the MP4 file), CC0, in cps3recomp/third_party/ and compiled by port/encoders*.c; and FAAC 2.2 (AAC),
+# LGPL-2.1, downloaded (its release's archive, checked against its SHA-256) and compiled with port/faac_config.h: its
+# plain C quantizer only, the SSE2 one left out, so that it is the same everywhere (cps2recomp's, the same)
+include(FetchContent)
+FetchContent_Declare(faac
+    URL https://github.com/knik0/faac/archive/refs/tags/faac-2.2.tar.gz
+    URL_HASH SHA256=a93963573907c83e26e8cfabbf80d3a9c360f06ea4ecf1ea6cb74a202494d8d9
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+FetchContent_MakeAvailable(faac) # (its sources only: it has no CMakeLists.txt, and its own build, meson's, is not used)
+file(GLOB FAAC_SOURCES "${faac_SOURCE_DIR}/libfaac/*.c")
+list(REMOVE_ITEM FAAC_SOURCES "${faac_SOURCE_DIR}/libfaac/quantize_sse.c")
+add_library(video_encoders STATIC ${CR}/port/encoders.c ${CR}/port/encoders_mp4.c ${FAAC_SOURCES})
+target_include_directories(video_encoders PUBLIC ${CR}/third_party "${faac_SOURCE_DIR}/include" PRIVATE "${faac_SOURCE_DIR}/libfaac")
+# (minih264's colour description on, and its scalable video off: minih264e.h)
+target_compile_definitions(video_encoders PRIVATE H264E_VUI_BT709=1 H264E_SVC_API=0 NDEBUG)
+target_compile_options(video_encoders PRIVATE -w -include "${CR}/port/faac_config.h")
+set_target_properties(video_encoders PROPERTIES POSITION_INDEPENDENT_CODE ON)
+if (UNIX AND NOT APPLE)
+    target_link_libraries(video_encoders PRIVATE m)
+endif ()
 if (APPLE)
     enable_language(OBJCXX)
     list(APPEND PORT_SOURCES ${CR}/port/front_macos.mm)
@@ -141,7 +162,7 @@ target_include_directories(${GAME} PRIVATE ${CR}/runtime ${CR}/port ${CR}/fight 
 if (SHARED_DIR)
     target_include_directories(${GAME} PRIVATE "${CMAKE_SOURCE_DIR}/games/${SHARED_DIR}")
 endif ()
-target_link_libraries(${GAME} PRIVATE cps3runtime cps3machine SDL3::SDL3)
+target_link_libraries(${GAME} PRIVATE cps3runtime cps3machine SDL3::SDL3 video_encoders)
 if (APPLE)
     target_link_libraries(${GAME} PRIVATE "-framework AppKit")
 endif ()

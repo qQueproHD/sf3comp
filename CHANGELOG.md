@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Video recording** (cps2recomp's, every game): the in-game menu's **Game > Video** page. **Record video** (Alt+F12)
+  records what you play and hear as an MP4 (H.264 and AAC, which plays anywhere) in `videos/` beside your saves, until
+  you stop it: the picture as screenshots take it, larger (3 times the board's lines unless **Video size** says 2, 4
+  or 1080 lines) with each pixel a sharp block, in the Display page's shape; the board's sound and the custom
+  soundtrack's. Stopped or in the menu nothing is recorded; slowed or sped up it plays at the board's speed.
+  `--record-video FILE.mp4` records a whole run, and with `--movie` and `--headless` makes a movie into a video.
 - **Each game's files on its page**: every game's page in the launcher has a **This game's files** card with that
   game's folder (its settings, saves, save states and logs) and a **Show** button that opens it.
 - **Dreamcast arranged can only be chosen with the disc**: the launcher's Custom soundtrack dropdown and the in-game

@@ -60,6 +60,19 @@ made by `cps3recomp/tools/sync-common.sh` and never changed here; its launcher d
 
 `cps3recomp/third_party/librashader.h` is librashader's C header (MIT).
 
+### Video encoders (CC0)
+
+The video recording (`cps3recomp/port/video_record.cpp`, the Video page's Record video) makes H.264 with minih264 and
+writes the MP4 file with minimp4, both single files by Lieff, compiled by `cps3recomp/port/encoders.c` and
+`encoders_mp4.c` (cps2recomp's copies). Both are dedicated to the public domain (CC0 1.0); the statements are at the
+top of each file, and the release archives carry them in `licenses/video-encoders.txt`. The sound is AAC from FAAC,
+downloaded at build time (below).
+
+| File | Project | Licence |
+| --- | --- | --- |
+| `cps3recomp/third_party/minih264e.h` | [minih264](https://github.com/lieff/minih264) (commit 207dee3), with three changes marked in it: on macOS its byte order from `<machine/endian.h>`, ARM64's `vqtbl2_u8` for the `vtbl2q_u8` that does not exist, and a colour description in its sequence header (`H264E_VUI_BT709`: BT.709, limited range) | CC0 1.0 |
+| `cps3recomp/third_party/minimp4.h` | [minimp4](https://github.com/lieff/minimp4) (commit 65fab0a), unchanged | CC0 1.0 |
+
 ### Country flags (MIT)
 
 `cps3recomp/recomp-common/launcher/flags.png` (compiled into the launcher) holds every ISO country's flag from
@@ -93,6 +106,7 @@ parry windows, the stun gauge) were taken as facts from Grouflon's
 | [SDL 3](https://libsdl.org) 3.4.16 | zlib | Window, input, audio, GPU (game and launcher) |
 | [Dear ImGui](https://github.com/ocornut/imgui) 1.92.9b | MIT | The launcher's interface |
 | [Inter](https://rsms.me/inter/) 4.1 | SIL Open Font License 1.1 | The launcher's font |
+| [FAAC](https://github.com/knik0/faac) 2.2 | LGPL-2.1-or-later. Copyright (C) 2001 Menno Bakker, (C) 2002-2017 Krzysztof Nikiel, and its other authors (its `AUTHORS`) | The video recording's sound (AAC), compiled into every game's program from its release's sources (its `libfaac/`, but for the SSE2 quantizer) with `cps3recomp/port/faac_config.h` |
 | [zlib](https://zlib.net) | zlib | Reading a ROM set's zip, screenshots |
 | [librashader](https://github.com/SnowflakePowered/librashader) 0.12.1 | MPL-2.0 or GPL-3.0 (used under GPL-3.0) | The Display page's shaders |
 | [slang-shaders](https://github.com/libretro/slang-shaders) | each file its own, stated at its top | The shader presets |
