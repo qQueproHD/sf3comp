@@ -220,6 +220,7 @@ void BuildFrame(const Video &v, const uint8_t *spriteRam, int margin, int shift,
     f.bufferHeight = std::min(std::max(f.height, clip.bottom + 1), kBufferBottom + 1);
     f.tiles.clear();
     f.tilePriority.clear();
+    f.tileFrom.clear();
     f.guest = false;
     f.guestVideo = nullptr;
     f.guestBufferWidth = f.guestBufferHeight = 0;
@@ -241,9 +242,10 @@ void BuildFrame(const Video &v, const uint8_t *spriteRam, int margin, int shift,
     Tile t;
     // (SetFillEnds: the tiles that fill a layer's end in the added columns, drawn under everything else)
     static thread_local std::vector<Tile> fill;
-    static thread_local std::vector<uint8_t> fillPriority;
+    static thread_local std::vector<uint8_t> fillPriority, fillFrom;
     fill.clear();
     fillPriority.clear();
+    fillFrom.clear();
     const bool fillEnds = g_fillEnds && margin > 0 && f.screen.zoomX == 0x40;
     const uint8_t *textures = fillEnds ? v.textures.Pixels() : nullptr;
     for (const DrawItem &d : f.items) {
@@ -254,6 +256,7 @@ void BuildFrame(const Video &v, const uint8_t *spriteRam, int margin, int shift,
                 t.producer = producer;
                 f.tiles.push_back(t);
                 f.tilePriority.push_back(d.priority);
+                f.tileFrom.push_back(Frame::kFromObject);
             }
             continue;
         }
@@ -293,6 +296,7 @@ void BuildFrame(const Video &v, const uint8_t *spriteRam, int margin, int shift,
                 t.producer = producer;
                 f.tiles.push_back(t);
                 f.tilePriority.push_back(d.priority);
+                f.tileFrom.push_back(d.tilemap & 3);
             }
         }
         if (!fillEnds) {
@@ -338,6 +342,7 @@ void BuildFrame(const Video &v, const uint8_t *spriteRam, int margin, int shift,
                     t.producer = 0;
                     fill.push_back(t);
                     fillPriority.push_back(d.priority);
+                    fillFrom.push_back(static_cast<uint8_t>(Frame::kFromFill | (d.tilemap & 3)));
                 }
             }
         }
@@ -345,6 +350,7 @@ void BuildFrame(const Video &v, const uint8_t *spriteRam, int margin, int shift,
     if (!fill.empty()) {
         f.tiles.insert(f.tiles.begin(), fill.begin(), fill.end());
         f.tilePriority.insert(f.tilePriority.begin(), fillPriority.begin(), fillPriority.end());
+        f.tileFrom.insert(f.tileFrom.begin(), fillFrom.begin(), fillFrom.end());
     }
     // The text layer's settings
     f.textScrollY = (-static_cast<int>((r.text[0x11] << 8) | r.text[0x10])) & 0x100;
@@ -417,9 +423,11 @@ bool AddGuest(const Video &guest, const uint8_t *guestSpriteRam, Frame &f, KeepO
             f.tiles[i].producer = 0;
         }
     }
-    for (Tile t : g.tiles) {
+    for (size_t i = 0; i < g.tiles.size(); i++) {
+        Tile t = g.tiles[i];
         t.producer = t.producer == 3 ? 2 : 1;
         f.tiles.push_back(t);
+        f.tileFrom.push_back(i < g.tileFrom.size() ? g.tileFrom[i] : Frame::kFromObject);
     }
     if (!bands) {
         oneBuffer();
@@ -652,6 +660,153 @@ void Rasteriser::Text(const Frame &f, const uint16_t *colours, const uint8_t *ss
                     }
                 }
             }
+        }
+    }
+}
+
+void Rasteriser::Split(const Frame &f, const Video &v, const uint8_t *ss, const std::vector<int> &layerOf, int layers,
+                       std::vector<std::vector<uint32_t>> &out, std::vector<uint32_t> &textLayer, uint32_t &backdropColour) {
+    m_blendKnown[0] = m_blendKnown[1] = {};
+    const int width = f.width, height = f.height;
+    const size_t cells = static_cast<size_t>(kBufferWidth) * kBufferHeight;
+    // Each producer's whole buffer, as Rasterise makes it (which decides whose a blend over nothing is, and what of a
+    // buffer over others is a blend there), and each layer's own buffer and the pixels its own tiles drew
+    const bool exists[4] = {true, f.guest, f.guest && f.bands, f.guest && f.bands};
+    const int bottom = f.guest ? 1 : 0;
+    static thread_local std::vector<uint32_t> full[4];
+    static thread_local std::vector<std::vector<uint32_t>> buffers;
+    static thread_local std::vector<std::vector<uint8_t>> own;
+    for (int p = 0; p < 4; p++) {
+        if (exists[p]) {
+            full[p].assign(cells, 0);
+        }
+    }
+    buffers.resize(static_cast<size_t>(layers));
+    own.resize(static_cast<size_t>(layers));
+    std::vector<int> producerOf(static_cast<size_t>(layers), -1);
+    std::vector<int> ofProducer[4];
+    for (size_t i = 0; i < f.tiles.size() && i < layerOf.size(); i++) {
+        const int l = layerOf[i];
+        if (l >= 0 && l < layers && producerOf[static_cast<size_t>(l)] < 0) {
+            producerOf[static_cast<size_t>(l)] = f.tiles[i].producer & 3;
+            ofProducer[f.tiles[i].producer & 3].push_back(l);
+        }
+    }
+    for (int l = 0; l < layers; l++) {
+        if (producerOf[static_cast<size_t>(l)] >= 0) {
+            buffers[static_cast<size_t>(l)].assign(cells, 0);
+            own[static_cast<size_t>(l)].assign(cells, 0);
+        }
+    }
+    const uint8_t *ownTextures = v.textures.Pixels(), *guestTextures = f.guest ? f.guestVideo->textures.Pixels() : nullptr;
+    for (size_t i = 0; i < f.tiles.size() && i < layerOf.size(); i++) {
+        const Tile &t = f.tiles[i];
+        const int p = t.producer & 3, l = layerOf[i];
+        if (!exists[p] || l < 0 || l >= layers) {
+            continue;
+        }
+        const uint8_t *textures = p == 1 || p == 2 ? guestTextures : ownTextures;
+        uint32_t *whole = full[p].data(), *mine = buffers[static_cast<size_t>(l)].data();
+        uint8_t *drawn = own[static_cast<size_t>(l)].data();
+        const std::vector<int> &others = ofProducer[p];
+        const uint32_t base = static_cast<uint32_t>(t.base);
+        // (a texel of this tile at a cell, as Rasterise writes it)
+        const auto put = [&](size_t k, uint8_t c) {
+            if (t.mode == 0) {
+                whole[k] = c | base;
+                mine[k] = c | base;
+                drawn[k] = 1;
+                return;
+            }
+            const uint32_t bits = t.mode == 1 ? static_cast<uint32_t>(c & 0xF) << 13 : (static_cast<uint32_t>(c & 1) << 15) | base;
+            const bool over = whole[k] == 0;
+            whole[k] |= bits;
+            for (const int m : others) {
+                buffers[static_cast<size_t>(m)][k] |= bits;
+            }
+            // (over nothing: its own pixel where the picture shows one there, Resolve: the bottom buffer's always, a
+            // buffer over others' only with a colour of its own in it, else a blend of what is under)
+            if (over && (p == bottom || (whole[k] & 0x1FFF))) {
+                drawn[k] = 1;
+            }
+        };
+        int yIndex = t.yIndex;
+        for (int y = t.sy; y < t.ey; y++, yIndex += t.dy) {
+            const uint8_t *row = textures + t.source + (yIndex >> 16) * 16;
+            const size_t line = static_cast<size_t>(y) * kBufferWidth;
+            int xIndex = t.xBase;
+            const bool unscaled = t.dx == 0x10000 || t.dx == -0x10000;
+            const int step = t.dx < 0 ? -1 : 1;
+            const uint8_t *texel = row + (t.xBase >> 16);
+            for (int x = t.sx; x < t.ex; x++) {
+                const uint8_t c = unscaled ? *texel : row[xIndex >> 16];
+                if (unscaled) {
+                    texel += step;
+                } else {
+                    xIndex += t.dx;
+                }
+                if (c) {
+                    put(line + static_cast<size_t>(x), c);
+                }
+            }
+        }
+    }
+    // Each layer to the picture's pixels through its producer's palette and zoom; then what the buffers over it do there
+    // where they have nothing of their own (their blends), in the order Resolve puts them over each other
+    const uint16_t *colours = v.palette.Colours(), *guestColours = f.guest ? f.guestVideo->palette.Colours() : nullptr;
+    const int order[4] = {1, 0, 2, 3};
+    const auto sample = [&](int p, int row, int col) {
+        const Screen &screen = p == 1 || p == 2 ? f.guestScreen : f.screen;
+        const uint32_t fx = (screen.zoomX << 16) / 0x40, fy = (screen.zoomY << 16) / 0x40;
+        const uint32_t sy = static_cast<uint32_t>(row) * fy, sx = static_cast<uint32_t>(col) * fx;
+        return static_cast<size_t>(std::min<uint32_t>(sy >> 16, kBufferHeight - 1)) * kBufferWidth + std::min<uint32_t>(sx >> 16, kBufferWidth - 1);
+    };
+    out.assign(static_cast<size_t>(layers), {});
+    for (int l = 0; l < layers; l++) {
+        const int p = producerOf[static_cast<size_t>(l)];
+        if (p < 0) {
+            continue;
+        }
+        std::vector<uint32_t> &pixels = out[static_cast<size_t>(l)];
+        pixels.assign(static_cast<size_t>(width) * height, 0);
+        const uint16_t *mine = p == 1 || p == 2 ? guestColours : colours;
+        int at = 0;
+        while (order[at] != p) {
+            at++;
+        }
+        for (int row = 0; row < height; row++) {
+            for (int col = 0; col < width; col++) {
+                const size_t k = sample(p, row, col);
+                if (!own[static_cast<size_t>(l)][k]) {
+                    continue;
+                }
+                uint32_t rgb = Rgb(mine[buffers[static_cast<size_t>(l)][k] & 0x1FFFF]);
+                for (int n = at + 1; n < 4; n++) {
+                    const int q = order[n];
+                    if (!exists[q]) {
+                        continue;
+                    }
+                    const uint32_t over = full[q][sample(q, row, col)];
+                    if (over & 0x1FFF) {
+                        break; // (what is over it here is that buffer's own: its layers cover this)
+                    }
+                    if (over) {
+                        rgb = Blended(q == 1 || q == 2 ? guestColours : colours, over >> 13, rgb, q == 2 ? 1 : 0);
+                    }
+                }
+                pixels[static_cast<size_t>(row) * width + col] = rgb | 0xFF000000u;
+            }
+        }
+    }
+    // (where no layer has anything: the bottom buffer's colour for nothing, as Resolve has it)
+    backdropColour = f.guest ? Rgb(guestColours[0]) : backdrop ? backdrop & 0xFFFFFF : Rgb(colours[0]);
+    textLayer.clear();
+    if (text) {
+        constexpr uint32_t kNone = 0x01000000u; // (no colour Rgb makes)
+        textLayer.assign(static_cast<size_t>(width) * height, kNone);
+        Text(f, colours, ss, textLayer, width, height);
+        for (uint32_t &pixel : textLayer) {
+            pixel = pixel == kNone ? 0 : pixel | 0xFF000000u;
         }
     }
 }

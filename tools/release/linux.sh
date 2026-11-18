@@ -29,6 +29,8 @@ cp "$LIBRA/librashader.so" "$STAGE/"
 cp -R "$LIBRA/shaders" "$STAGE/"
 cp "$LIBRA/librashader-LICENSE.md" "$STAGE/licenses/librashader-MPL-2.0.txt"
 cp "$LIBRA/librashader-LICENSE-GPL.md" "$STAGE/licenses/librashader-GPL-3.0.txt"
+# (the launcher's Tools: the scene diorama, tools/diorama, cps2recomp's)
+cp "$ROOT/tools/diorama/diorama.html" "$STAGE/"
 rm -f "$OUT/$ARCHIVE-$SYSTEM.tar.gz"
 tar -czf "$OUT/$ARCHIVE-$SYSTEM.tar.gz" -C "$BUILD/stage" "$ARCHIVE"
 check_archive "$OUT/$ARCHIVE-$SYSTEM.tar.gz"

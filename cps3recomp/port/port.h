@@ -12,6 +12,7 @@
 #include "replay.h"
 #include "soundtrack.h"
 #include "video_record.h"
+#include "scene.h"
 #include "zoom.h"
 
 #include <array>
@@ -166,6 +167,11 @@ struct Port {
     bool Screenshot();
     std::string shotSaid;
     int shotTicks = 0;
+    // The scene export (scene.h, cps2recomp's issue #366): Shift+F12 or the Scene export page's Save scene, the picture and
+    // each of its layers by itself; Ctrl+F12 or Record clip, the same for each frame of a few seconds
+    SceneExport scene;
+    void SaveScene();
+    void SceneClip();
     // The video recording (video_record.h, cps2recomp's issue #376): Alt+F12 or the Video page's Record video, what is
     // played and heard as an MP4 in the player's folder's videos/, until either again; or --record-video's file, the
     // whole run

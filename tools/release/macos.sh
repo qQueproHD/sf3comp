@@ -28,6 +28,8 @@ cp "$LIBRA/librashader.dylib" "$APP/Contents/Frameworks/"
 cp -R "$LIBRA/shaders" "$APP/Contents/Resources/"
 cp "$LIBRA/librashader-LICENSE.md" "$APP/Contents/Resources/licenses/librashader-MPL-2.0.txt"
 cp "$LIBRA/librashader-LICENSE-GPL.md" "$APP/Contents/Resources/licenses/librashader-GPL-3.0.txt"
+# (the launcher's Tools: the scene diorama, tools/diorama, cps2recomp's)
+cp "$ROOT/tools/diorama/diorama.html" "$APP/Contents/Resources/"
 codesign --force --deep -s - "$APP"
 
 for binary in "$APP/Contents/MacOS/"* "$APP/Contents/Frameworks/"*; do

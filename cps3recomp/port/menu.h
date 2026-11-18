@@ -60,6 +60,7 @@ public:
         return m_replay;
     }
     bool hosting = false; // (a match hosted from the Online page, waited for: its row is Stop hosting)
+    bool recordingClip = false;  // (a scene clip being recorded: the Scene export page's Record clip row is Stop recording)
     bool recordingVideo = false; // (a video being recorded: the Video page's Record video row is Stop recording video)
     int Slot() const {
         return m_menu.Slot();

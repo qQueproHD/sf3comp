@@ -97,6 +97,18 @@ public:
     const uint8_t *GpuText() const {
         return m_gpuText.data();
     }
+    // The scene export's (port/scene.h): the frame the picture shown was drawn from, made ready as one frame of one or two
+    // producers (native::Frame), with the interface and text layer memory it was drawn from and the rasteriser that drew
+    // it (its settings: text, backdrop); the picture made first if it was owed. False when the picture was not drawn so:
+    // by the board's renderer (--board), or made of more than one picture (a stage fading or sliding in, the ring out's
+    // way down, a stage alone or darkened, the second pass of objects put in front)
+    struct ShownParts {
+        const native::Frame *frame = nullptr;
+        const native::Video *video = nullptr;
+        const uint8_t *ss = nullptr;
+        const native::Rasteriser *raster = nullptr;
+    };
+    bool ShownFrame(ShownParts &parts) const;
     int PictureWidth() const {
         return m_width;
     }
@@ -223,6 +235,9 @@ private:
     Renderer m_renderer;
     // (the picture from the native interfaces: the native rasteriser, with the renderers' settings, DrawLayers)
     native::Rasteriser m_shownRaster;
+    // (how the picture shown was drawn, for ShownFrame: not as one frame; by m_shownRaster from this board's interface (with
+    // a stage board's stage or not); or from the frame made for the GPU with a stage board's stage)
+    enum class ShownWay : uint8_t { kOther, kRaster, kGpuGuest } m_shownWay = ShownWay::kOther;
     struct ShownKeep {
         bool (*fn)(void *context, uint16_t group, uint32_t object) = nullptr;
         void *context = nullptr;

@@ -65,6 +65,10 @@ if LIBRA=$("$(dirname "$0")/librashader.sh"); then
 else
     echo "warning: no shaders in $APP (tools/librashader.sh failed)" >&2
 fi
+# (the launcher's Tools: the scene diorama, tools/diorama)
+if [ -f tools/diorama/diorama.html ]; then
+    cp tools/diorama/diorama.html "$APP/Contents/Resources/"
+fi
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

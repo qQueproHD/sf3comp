@@ -42,6 +42,8 @@ cp "$LIBRA/librashader.dll" "$STAGE/"
 cp -R "$LIBRA/shaders" "$STAGE/"
 cp "$LIBRA/librashader-LICENSE.md" "$STAGE/licenses/librashader-MPL-2.0.txt"
 cp "$LIBRA/librashader-LICENSE-GPL.md" "$STAGE/licenses/librashader-GPL-3.0.txt"
+# (the launcher's Tools: the scene diorama, tools/diorama, cps2recomp's)
+cp "$ROOT/tools/diorama/diorama.html" "$STAGE/"
 # (zlib1.dll is in the archive and the MinGW-w64 and GCC runtimes are linked into the programs)
 cp "$(ls /usr/share/doc/libz-mingw-w64*/copyright | head -1)" "$STAGE/licenses/zlib.txt"
 cp /usr/share/doc/mingw-w64-common/copyright "$STAGE/licenses/MinGW-w64-runtime.txt"
