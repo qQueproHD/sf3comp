@@ -425,6 +425,12 @@ void StartOnAndroid();
 // the window, and how many times the board's lines the window opens
 Scaling DisplayScaling();
 Shape DisplayShape();
+// The size an SVG of the board's pixels is shown at (image_files.h, WriteSvg; cps2recomp's issue #368): three times its
+// rows tall, its pixels as the Display page shows them (on the board's 4:3 screen narrower than tall; or square)
+inline void SvgSize(int columns, int rows, double &width, double &height) {
+    height = rows * 3.0;
+    width = columns * 3.0 * (DisplayShape() == Shape::SquarePixels ? 1.0 : (4.0 / 3.0) / (384.0 / 224.0));
+}
 int WindowSize();
 // The Display page's Bezels (bezel.h), and its Full screen as: true for a borderless window as large as the screen in
 // place of full screen (never with the arcade monitor's resolution)

@@ -40,6 +40,8 @@ inline constexpr recomp::i18n::Entry kPortuguese[] = {
     {"REPLAY NOT SAVED", "REPLAY NÃO SALVO"},
     {"SAVING REPLAY...", "SALVANDO REPLAY..."},
     {"REPLAY SAVED", "REPLAY SALVO"},
+    {"SVG pictures too", "Imagens SVG também"},
+    {"Screenshots (F12) also write an SVG picture beside their PNG: each pixel a square, so it scales to any size exactly, in the Display page's shape.", "As capturas (F12) gravam também uma imagem SVG ao lado do PNG: cada pixel um quadrado, então ela escala para qualquer tamanho com exatidão, no formato da página Tela."},
 };
 
 } // namespace port
