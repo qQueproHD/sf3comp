@@ -11,6 +11,7 @@
 #include "present.h"
 #include "replay.h"
 #include "soundtrack.h"
+#include "video_record.h"
 #include "zoom.h"
 
 #include <array>
@@ -47,6 +48,7 @@ struct Options {
     std::string recordEntries; // entries file to add to (tools/recomp.py reads it)
     std::string dumpProgram;   // write the deciphered program here and stop
     std::string audioDump;     // WAV file of the sound (headless)
+    std::string videoOut;      // --record-video FILE.mp4: the whole run recorded as a video (video_record.h), as the Video page's Record video does
     std::string soundtrack;    // --soundtrack DIR: the custom soundtrack's folder (soundtrack.h; default: beside settings.ini)
     std::string soundtrackDump; // --soundtrack-dump FILE: WAV file of what the custom soundtrack plays (headless)
     std::string settingsPath;  // settings.ini with the player's feature choices
@@ -164,6 +166,18 @@ struct Port {
     bool Screenshot();
     std::string shotSaid;
     int shotTicks = 0;
+    // The video recording (video_record.h, cps2recomp's issue #376): Alt+F12 or the Video page's Record video, what is
+    // played and heard as an MP4 in the player's folder's videos/, until either again; or --record-video's file, the
+    // whole run
+    VideoRecorder recorder;
+    uint64_t videoFrame = 0; // (the frame the last picture handed to it was of)
+    bool shooting = false;   // (a screenshot being taken: the window's line about the recording not in it)
+    void RecordVideo();      // (starts or stops)
+    bool StartVideo(const std::string &path);
+    void StopVideo();
+    // Each frame run while recording: its sound (the game's, as heard; and the custom soundtrack's, at its rate) and the
+    // picture as screenshots take it, without the port's notices at the bottom
+    void VideoFrame(const int16_t *sound, size_t soundFrames, const float *music, size_t musicFrames, int musicRate);
     // One tick; true if the game ran (so that there is a new picture and sound)
     bool Tick();
     // The keys that work while playing: 'p' stops and starts, 'o' goes on by a frame, '-' and '=' change the
@@ -194,7 +208,8 @@ struct Port {
     void MenuPicture(std::vector<uint32_t> &pixels, uint32_t &width, uint32_t &height, int wantWidth = 0, int wantHeight = 0) const;
     // The picture with the readout over it (runtime/game.h, SetHud), as the window and screenshots show it; and
     // where on it the readout's panels went (none: not asked)
-    void Shown(std::vector<uint32_t> &pixels, std::vector<SDL_Rect> *panels = nullptr) const;
+    // (`notices`: the port's lines at the bottom too, as the window has them: the speed, the zoom, a screenshot saved...)
+    void Shown(std::vector<uint32_t> &pixels, std::vector<SDL_Rect> *panels = nullptr, bool notices = true) const;
     // The camera's zoom (zoom.h), the window's: a gamepad's left stick held and a shoulder pressed
     Zoom zoom;
     // The picture for the window, a step of the zoom on: as Shown, or zoomed (true), as `zoomed` says (present.h)
@@ -212,7 +227,7 @@ struct Port {
     // ... and the menu's picture's (MenuPicture with the menu drawn over it), the menu's picture's size
     void MenuOverlay(std::vector<uint32_t> &overlay, uint32_t &width, uint32_t &height, int wantWidth = 0, int wantHeight = 0) const;
     // What Shown puts over a picture (the readout, the lines at the bottom, online's names and chat)
-    void ShownOver(std::vector<uint32_t> &pixels, std::vector<SDL_Rect> *panels = nullptr) const;
+    void ShownOver(std::vector<uint32_t> &pixels, std::vector<SDL_Rect> *panels = nullptr, bool notices = true) const;
     mutable std::vector<uint32_t> m_probeBlack, m_probeWhite;
     // Set by the frontend: the picture goes to the window through SDL's GPU API with the native video's renderer
     // (Presenter::CanShowNative): each frame is then made for the GPU (Machine::gpuPicture) unless the menu is open

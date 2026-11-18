@@ -82,6 +82,13 @@ add_notices() {
     cp "${imgui:-$2/_deps/imgui-src}/LICENSE.txt" "$1/licenses/DearImGui.txt"
     cp "$(find "${inter:-$2/_deps/inter-src}" -iname 'LICENSE*' | head -1)" "$1/licenses/Inter-OFL.txt"
     cp "$ROOT/cps3recomp/recomp-common/launcher/flags-LICENSE.txt" "$1/licenses/flag-icons-MIT.txt"
+    # (the video recording's AAC encoder, FAAC, downloaded into each game's build: its licence, from the first; and the
+    # licence statements of minih264 and minimp4, CC0, from the ends of their files)
+    faac="$(ls "$(dirname "$2")"/games/*/_deps/faac-src/COPYING 2>/dev/null | head -1)"
+    [ -n "$faac" ] || { echo "error: no FAAC licence in a game's build (_deps/faac-src) under $(dirname "$2")/games" >&2; exit 1; }
+    cp "$faac" "$1/licenses/FAAC-LGPL-2.1.txt"
+    { for f in minih264e minimp4; do echo "$f (cps3recomp/third_party/$f.h):"; awk 'NR > 3 && /^\*\//{exit} NR > 3' "$ROOT/cps3recomp/third_party/$f.h" | tr -d '\r'; echo; done
+    } > "$1/licenses/video-encoders.txt"
     { echo "stb_vorbis (cps3recomp/third_party/stb_vorbis.c):"; sed -n '/^ALTERNATIVE A - MIT License/,$p' "$ROOT/cps3recomp/third_party/stb_vorbis.c"
       for f in dr_flac dr_mp3 dr_wav; do echo; echo "$f (cps3recomp/third_party/$f.h):"; sed -n '/^ALTERNATIVE 1 - Public Domain/,$p' "$ROOT/cps3recomp/third_party/$f.h"; done
     } > "$1/licenses/sound-decoders.txt"
