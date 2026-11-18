@@ -204,10 +204,31 @@ void RegisterPortFeatures() {
                                       "at a time or slowed, and to play on from any moment. Not in training.",
                                       kFeatureEnhanced});
     }
+    // (the scene export: Port::SaveScene, SceneClip; scene.h, cps2recomp's)
+    TheGame().pages.push_back({"Scene export", "Game",
+                               "The picture taken apart: each of the board's layers by itself, as pictures with nothing where a "
+                               "layer has nothing, for one frame or a few seconds."});
+    TheGame().commands.push_back({"scene_save", "Scene export", "Save scene",
+                                  "Saves the picture as it is now, and each of its layers by itself (the board's tilemaps, the objects between "
+                                  "them, which hold the fighters, the panel and parts of stages, and its text layer) with nothing where the "
+                                  "layer has nothing, in a folder of its own in exports/scenes beside your saves, with a scene.json of the "
+                                  "layers' order, back to front. A fight on another game's stage has that stage's layers too. Also Shift+F12.",
+                                  nullptr});
+    TheGame().commands.push_back({"scene_clip", "Scene export", "Record clip",
+                                  "Saves the same for each frame from now, for as long as Clip length says, each layer's frames in "
+                                  "a folder of their own (this row again, or Ctrl+F12, stops sooner). The game goes on as it does.",
+                                  nullptr});
+    TheGame().features.push_back({"scene_clip_length", "Scene export", "Clip length", "How long Record clip records for.", 0,
+                                  {"3 seconds", "5 seconds", "10 seconds"}});
+    TheGame().commands.push_back({"scene_show_folder", "Scene export", "Show scenes folder",
+                                  "Opens exports/scenes beside your saves, where Save scene and Record clip write, in your file "
+                                  "manager.",
+                                  nullptr});
     // (SVG beside the PNGs: cps2recomp's issue #368, image_files.h's WriteSvg)
     TheGame().features.push_back({"export_svg", "Game", "SVG pictures too",
-                                  "Screenshots (F12) also write an SVG picture beside their PNG: each pixel a square, so it "
-                                  "scales to any size exactly, in the Display page's shape.",
+                                  "Screenshots (F12) and Save scene also write SVG pictures beside their PNGs: each pixel a square, so they "
+                                  "scale to any size exactly, in the Display page's shape. A scene's has each layer as a layer of its own "
+                                  "(scene.svg), for drawing programs. Not for clips.",
                                   0});
     // (the video recording: Port::RecordVideo, video_record.h; cps2recomp's page, the same)
     TheGame().pages.push_back({"Video", "Game", "What you play and hear, recorded as an MP4 video that plays anywhere."});
@@ -341,6 +362,7 @@ int WindowSize() {
 
 bool Port::Init(std::string &error) {
     port::AddTranslations(); // (the port's words in the player's language: i18n.h)
+    scene.SetWaiting(opt.headless || opt.unthrottled); // (not in real time: a clip's every frame written, none cut short)
     RomList list;
     list.set = GAME_ROM_SET;
     list.parent = GAME_ROM_PARENT;
@@ -749,6 +771,21 @@ void Port::RunCommand(size_t index) {
     const auto &commands = TheGame().commands;
     if (index < commands.size() && !strcmp(commands[index].name, "online_host")) {
         HostFromMenu();
+        return;
+    }
+    if (index < commands.size() && !strcmp(commands[index].name, "scene_save")) {
+        SaveScene();
+        return;
+    }
+    if (index < commands.size() && !strcmp(commands[index].name, "scene_clip")) {
+        SceneClip();
+        return;
+    }
+    if (index < commands.size() && !strcmp(commands[index].name, "scene_show_folder")) {
+        const std::string folder = PlayerFolder() + "exports/scenes";
+        std::error_code error;
+        std::filesystem::create_directories(std::filesystem::path(std::u8string(folder.begin(), folder.end())), error);
+        OpenFolder(folder);
         return;
     }
     if (index < commands.size() && !strcmp(commands[index].name, "video_record")) {
@@ -1433,6 +1470,41 @@ static void VideoSum(const char *which, uint64_t frame, const std::vector<uint32
     const unsigned long heard = crc32(0, reinterpret_cast<const Bytef *>(sound), static_cast<uInt>(soundFrames * 4));
     fprintf(file, "%s %llu %08lx %08lx\n", which, static_cast<unsigned long long>(frame), picture, heard);
     fflush(file);
+}
+
+// (what the scene export says, in the language chosen: its words, then two spaces and the folder)
+static std::string SaidOfScene(const std::string &said) {
+    const size_t at = said.find("  ");
+    return at == std::string::npos ? recomp::i18n::Tr(said) : recomp::i18n::Tr(said.substr(0, at)) + said.substr(at);
+}
+
+// The name a scene's folder is given: the game's and the time, as a screenshot's
+static std::string SceneName() {
+    char stamp[32] = "";
+    const std::time_t now = std::time(nullptr);
+    if (const std::tm *local = std::localtime(&now)) {
+        std::strftime(stamp, sizeof(stamp), "%Y-%m-%d %H.%M.%S", local);
+    }
+    return std::string(GAME_ID " ") + stamp;
+}
+
+void Port::SaveScene() {
+    shotSaid = SaidOfScene(scene.Save(*machine, PlayerFolder() + "exports/scenes/", SceneName()));
+    shotTicks = kSpeedTicks;
+}
+
+void Port::SceneClip() {
+    if (scene.Recording()) {
+        scene.StopClip();
+        shotSaid = recomp::i18n::Tr("SAVING SCENE CLIP...");
+    } else {
+        static const int kSeconds[] = {3, 5, 10};
+        const int seconds = kSeconds[std::clamp(FeatureValue("scene_clip_length"), 0, 2)];
+        shotSaid = SaidOfScene(scene.StartClip(PlayerFolder() + "exports/scenes/", SceneName() + " clip",
+                                               static_cast<int>(std::lround(seconds * Machine::kFramesPerSecond))));
+    }
+    shotTicks = kSpeedTicks;
+    menu.recordingClip = scene.Recording();
 }
 
 // The video's size, from the Video page's Video size: so many times the picture's lines (or 1080 lines), in its
@@ -2565,6 +2637,16 @@ void Port::RunFrame() {
         LagMeasure();
         memcpy(machine->players, pressed, sizeof(pressed));
         RunAhead();
+    }
+    // (the scene clip's frame: the picture shown, run-ahead's or not, and the records it was drawn from; and what a clip
+    // written says, as a screenshot's line)
+    if (scene.Recording()) {
+        scene.Frame(*machine);
+        menu.recordingClip = scene.Recording();
+    }
+    if (std::string said; scene.TakeSaid(said)) {
+        shotSaid = SaidOfScene(said);
+        shotTicks = kSpeedTicks;
     }
     if (opt.shotEvery && frame % opt.shotEvery == 0) {
         char shot[512];

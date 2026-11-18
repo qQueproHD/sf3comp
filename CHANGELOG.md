@@ -9,6 +9,14 @@
   the board has it), the endless battle's **Stages**. Settings already chosen stay as they are.
 - **The mouse in the in-game menu**: pointing at a row chooses it, a click does what Enter does, the right button goes
   back a page and the wheel goes up and down. The keypad's Enter confirms too.
+- **Scene export** (cps2recomp's, every game): the Game page's **Scene export**. **Save scene** (Shift+F12) saves the
+  picture and each of its layers by itself as a see-through PNG (the board's tilemaps, the objects between them, the
+  text layer; New Generation's or 2nd Impact's stage's layers too, in a fight on one), with a `scene.json` of their
+  order, in `exports/scenes/` beside your saves; **Record clip** (Ctrl+F12) the same for each frame of 3, 5 or 10
+  seconds. Shadows are in the layer they fall on, so the layers put back together make the picture exactly. With SVG
+  pictures too, a scene's `scene.svg` has each layer as a layer of its own. The **scene diorama**
+  (`tools/diorama/diorama.html`, cps2recomp's) shows them as 3D cut-outs: open it from the launcher's Games page
+  (Tools) or as a file.
 - **SVG pictures** (cps2recomp's): the Game page's **SVG pictures too** writes an SVG beside each screenshot's PNG
   (F12): each pixel a square, so it scales to any size exactly, in the Display page's shape. Drawn, it is its PNG
   pixel for pixel.

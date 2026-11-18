@@ -111,6 +111,9 @@ playable by either player.
 - **An in-game menu** (Esc or F1; on a gamepad the left stick's click, or Start and Select together): save states,
   speed, the cheats, the board's own settings and test menu, every feature. Pure plays exactly as the board does;
   Enhanced (the default) adds free play, arcade timing, integer scaling and, in widescreen, invisible walls.
+- **Scene export**: any moment of any game saved as its layers, each a see-through PNG (the board's tilemaps, the
+  objects between them, the text layer; a guest stage's too), for a frame or a few seconds of them, and shown as 3D
+  cut-outs in the scene diorama ([more](docs/FEATURES.md#scene-export)).
 - **Video recording**: what you play and hear saved as an MP4 that plays anywhere, the pixels sharp at 3 times the
   board's size or more, the custom soundtrack too (Alt+F12, or the menu's **Game > Video** page); and **instant
   replay**, the last 30 seconds saved after they happen (Alt+Shift+F12) ([more](docs/FEATURES.md#video-recording)).

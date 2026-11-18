@@ -81,6 +81,11 @@ struct Frame {
     int front = 0, frontPiece = 0;
     bool bands = false;
     std::vector<uint8_t> tilePriority; // (the game's tiles' priorities, as `tiles`: for AddGuest)
+    // What each of `tiles` was made from, as `tiles` (the guest's too): a tilemap's line (the tilemap, 0-3), an object
+    // (kFromObject), or a tilemap's end filled in widescreen's added columns (SetFillEnds: kFromFill + the tilemap).
+    // Not the GPU's: for the scene export's layers (Rasteriser::Split)
+    static constexpr uint8_t kFromObject = 4, kFromFill = 0x10;
+    std::vector<uint8_t> tileFrom;
 };
 // Which of a frame's objects are drawn (none: all): a rule on each object, with its context. For a frame made of two
 // producers' layers (a guest stage's under the game's: docs/NATIVE.md), each producer's part.
@@ -142,6 +147,17 @@ public:
     const Frame &LastFrame() const {
         return m_frame;
     }
+    // A frame's picture in layers (the scene export, port/scene.h), each tile in the layer `layerOf` says (all of one
+    // producer's, Tile::producer), so that the layers laid over each other on `backdrop`, those of the guest's buffer
+    // (1) first, then the game's (0), the guest's in front (2) and the game's in front (3), each producer's in their
+    // order, and then the text layer (when this rasteriser draws it), make the picture DrawFrame makes, pixel for pixel.
+    // Each layer is whole (what the others cover too) and has a pixel where one of its own tiles drew one: a blend's
+    // shadow or highlight is in the layer it falls on (each layer is drawn with every blend of its producer's buffer,
+    // and with those of the buffers over it where they fall on nothing of their own's), and a blend over nothing at all
+    // of the bottom buffer's is its own layer's pixel, as the picture has it. Pixels 0x00BBGGRR with 0xFF in the top byte
+    // where the layer has one (0: none); `text` the text layer's, the same.
+    void Split(const Frame &f, const Video &v, const uint8_t *ssRam, const std::vector<int> &layerOf, int layers,
+               std::vector<std::vector<uint32_t>> &out, std::vector<uint32_t> &textLayer, uint32_t &backdropColour);
 
 private:
     static constexpr int kBufferWidth = 1024, kBufferHeight = 448;

@@ -529,6 +529,24 @@ void Machine::KeepGpuGuest() {
     m_gpuGuest = m_stageMade;
 }
 
+bool Machine::ShownFrame(ShownParts &parts) const {
+    MakePicture();
+    parts.raster = &m_shownRaster;
+    if (m_shownWay == ShownWay::kGpuGuest) {
+        parts.frame = &m_gpuFrame;
+        parts.video = &m_gpuVideo;
+        parts.ss = m_gpuText.data();
+        return true;
+    }
+    if (m_shownWay == ShownWay::kRaster) {
+        parts.frame = &m_shownRaster.LastFrame();
+        parts.video = &board.native;
+        parts.ss = board.SsRam();
+        return true;
+    }
+    return false;
+}
+
 void Machine::MakePicture() const {
     if (!m_pictureOwed) {
         return;
@@ -828,6 +846,8 @@ void Machine::RunFrame() {
         m_height = m_gpuFrame.height;
         m_pictureOwed = true;
         m_gpuReady = true;
+        // (drawn when asked for, MakePicture: from this frame with a stage board's stage, else as the plain frame is)
+        m_shownWay = stageFrame ? ShownWay::kGpuGuest : ShownWay::kRaster;
     } else if (drawing) {
         // The picture: from the native interfaces (the native rasteriser) when they hold the frame, else (and with
         // --board, and in the checks, where the native one is compared with it) by the board's renderer
@@ -836,6 +856,8 @@ void Machine::RunFrame() {
         static const bool timed = getenv("CPS3RECOMP_PICTURE_TIMES") != nullptr;
         const auto at = timed ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
         const int kind = Compose(native, m_picture, m_width, m_height);
+        // (one frame drawn by m_shownRaster: the plain one, or with a stage board's stage as one frame, DrawWithStage)
+        m_shownWay = native && (kind == 1 || (kind == 2 && SingleFrameWithStage())) ? ShownWay::kRaster : ShownWay::kOther;
         if (timed) {
             (native ? g_shownTotals.nativeTimes : g_shownTotals.boardTimes).push_back(std::chrono::duration<double>(std::chrono::steady_clock::now() - at).count());
         }

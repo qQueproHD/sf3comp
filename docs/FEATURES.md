@@ -15,6 +15,7 @@ prints them all with their descriptions. Online, the host's choices of the ones 
 | Display | Scaling, picture shape (4:3 or square pixels), RetroArch shaders, zoom on a fighter or both, vsync, window size |
 | Sound | Custom soundtrack (your own files, by song or as a playlist) |
 | Screenshots | F12, as PNG; SVG pictures too |
+| Scene export | Save scene (Shift+F12), record clip (Ctrl+F12) and its length, show the scenes folder |
 | Video | Record video (Alt+F12), video size, save replay (Alt+Shift+F12) and its length, show the videos folder |
 | Online | Ping and input delay shown, names hidden |
 | Display | Input lag readout |
@@ -33,7 +34,8 @@ F12 saves the picture as the window shows it, at the board's size (384 by 224, w
 on it but not the camera's zoom, to `screenshots/` in the game's folder, as `<game> <date> <time>.png`. Where it went is
 said at the bottom for a few seconds.
 
-**SVG pictures too** (the Game page's `export_svg`, cps2recomp's) writes an SVG beside each screenshot's PNG. Each of the
+**SVG pictures too** (the Game page's `export_svg`, cps2recomp's) writes an SVG beside each screenshot's PNG, and a
+scene's `scene.svg` (below). Each of the
 board's pixels is a square of the SVG's grid, so it scales to any size exactly: what a row has of a colour side by side is
 one rectangle, made taller where the rows below have the same, each colour's rectangles one path, and the picture's
 commonest colour one rectangle behind it all (`image_files::WriteSvg`, cps2recomp's `model/image_files.h`). It is shown
@@ -81,3 +83,38 @@ run again does differently lasts a second at most. `games/sfiii3/checkreplay.sh`
 and on a guest stage, every picture and every frame's sound of the replay is the one the play had, and the play with a
 replay made is the play without one. The custom soundtrack is not in it (its player is the port's, not the game's),
 and online play keeps nothing.
+
+## Scene export
+
+The picture taken apart (`cps3recomp/port/scene.h`, cps2recomp's, with the same files and `scene.json`; the in-game
+menu's **Game > Scene export** page, every game). **Save scene** (Shift+F12) writes a folder in `exports/scenes/` beside
+the saves: `picture.png`, the picture as the board drew it, and each of its layers by itself, with nothing where the
+layer has nothing. A CPS-3 has no fixed layers: its picture is the frame's object list drawn in its order, with the
+board's four tilemaps among the objects, and the text layer over all of it. So each run of the list that is one
+tilemap's lines is a layer (`tilemap1` to `tilemap4`; in widescreen `tilemap1-ends` and so on, a far layer's ends filled
+in the added columns), each run of objects between them another (`objects-0` on: how many tilemap runs are behind
+them; the objects hold the fighters, the panel and parts of stages), and the text layer `text`. A fight on New
+Generation's or 2nd Impact's stage has that stage's layers too (`stage-...`), behind the game's, and its pieces in front
+of the fighters in front of them. `scene.json` lists the layers back to front; laid over each other on the backdrop
+colour in that order they make `picture.png` again.
+
+Each layer is the frame drawn again from its records (`native::Rasteriser::Split`, from the frame the picture was drawn
+from: `Machine::ShownFrame`), whole, what the layers in front of it cover too. The board's shadows and highlights are
+blends: they darken or lighten what is already drawn under them. Each is in the layer it falls on (every layer is drawn
+with every blend of the frame, as the board would draw them over it), so that the layers put back together make the
+picture exactly, and a fighter's shadow stays on the floor in the diorama rather than floating as a layer of its own.
+Every scene is put back together as it is taken and checked against the picture: one the layers do not make again, or
+one the game made of more than one picture (a stage fading or sliding in, the ring out's way down), is saved whole, as
+the one layer `whole`. **Record clip** (Ctrl+F12) does the same for every frame of 3, 5 or 10 seconds (**Clip length**),
+each layer's frames in a folder of their own (`objects-0/0001.png`...), with each frame's layers in `scene.json`; the
+files are written by threads beside the game. With **SVG pictures too** (Game page), a scene also has `scene.svg`: the
+backdrop and each layer back to front, each a group (an Inkscape layer).
+
+`games/sfiii3/checkscene.sh` checks it: at the title and in a fight, on 3rd Strike's own stage and on New Generation's,
+in 4:3 and widescreen, headless and through the window's GPU path, every scene's layers and a clip's every frame put
+back together make the picture pixel for pixel.
+
+**The scene diorama** (`tools/diorama/diorama.html`, cps2recomp's, unchanged) shows what these save as cut-outs at their
+own depths: the launcher's **Open diorama** (Games page, Tools) opens it in the browser, as does opening the file
+itself; then open a saved folder (or drop it on the page). Turn it, pull the layers apart, hide or solo them, take a
+photo or record a video, save it as a 3D model (glTF). It loads three.js from jsDelivr; nothing leaves the browser.

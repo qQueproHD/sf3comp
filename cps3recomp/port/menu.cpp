@@ -69,6 +69,10 @@ void Menu::Open(bool withStates) {
                                        "Others can no longer join: the match's code stops working. Your game goes on as it is."});
             continue;
         }
+        if (recordingClip && !strcmp(command.name, "scene_clip")) {
+            config.commands.push_back({command.category, "Stop recording", "Ends the clip being recorded here; its frames so far are kept."});
+            continue;
+        }
         if (recordingVideo && !strcmp(command.name, "video_record")) {
             config.commands.push_back({command.category, "Stop recording video", "Ends the video being recorded and saves it."});
             continue;
