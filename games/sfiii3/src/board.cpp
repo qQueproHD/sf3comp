@@ -102,28 +102,28 @@ void BoardBeforeFrame(Machine &m) {
 
 void RegisterBoard(Game &game) {
     game.features.push_back({"board_difficulty", "Board", "Difficulty", "How hard the computer plays (the board's 1 to 8). Takes effect when the game is reset.",
-                             0, {"As the board has it", "1 (easiest)", "2", "3", "4", "5", "6", "7", "8 (hardest)"}});
+                             0, {"As the board is set", "1 (easiest)", "2", "3", "4", "5", "6", "7", "8 (hardest)"}});
     game.features.push_back({"board_damage", "Board", "Damage level", "How much a hit takes (the board's 1 to 4). Takes effect when the game is reset.",
-                             0, {"As the board has it", "1 (least)", "2", "3", "4 (most)"}});
+                             0, {"As the board is set", "1 (least)", "2", "3", "4 (most)"}});
     game.features.push_back({"board_timer", "Board", "Timer speed", "How fast the round's clock runs (the board's 1 to 4). Takes effect when the game is reset.",
-                             0, {"As the board has it", "1 (slowest)", "2", "3", "4 (fastest)"}});
+                             0, {"As the board is set", "1 (slowest)", "2", "3", "4 (fastest)"}});
     game.features.push_back({"board_rounds_cpu", "Board", "Rounds against the computer", "Rounds to win a match against the computer. Takes effect when the game is reset.",
-                             0, {"As the board has it", "1", "2 (best of 3)", "3 (best of 5)"}});
+                             0, {"As the board is set", "1", "2 (best of 3)", "3 (best of 5)"}});
     game.features.push_back({"board_rounds_vs", "Board", "Rounds between two players", "Rounds to win a match between two players. Takes effect when the game is reset.",
-                             0, {"As the board has it", "1", "2 (best of 3)", "3 (best of 5)"}});
+                             0, {"As the board is set", "1", "2 (best of 3)", "3 (best of 5)"}});
     game.features.push_back({"board_event", "Board", "Event", "Off, or one match only (and no continue). Takes effect when the game is reset.",
-                             0, {"As the board has it", "Off", "One match"}});
+                             0, {"As the board is set", "Off", "One match"}});
     game.features.push_back({"board_bonus", "Board", "Bonus games", "Whether the one-player game has its bonus stages. Takes effect when the game is reset.",
-                             0, {"As the board has it", "On", "Off"}});
+                             0, {"As the board is set", "On", "Off"}});
     game.features.push_back({"board_continue", "Board", "Continue", "Whether a game over can be continued. Takes effect when the game is reset.",
-                             0, {"As the board has it", "Yes", "No"}});
+                             0, {"As the board is set", "Yes", "No"}});
     game.features.push_back({"board_demo_sound", "Board", "Demo sound", "Whether the attract mode plays sound. Takes effect when the game is reset.",
-                             0, {"As the board has it", "On", "Off"}});
+                             0, {"As the board is set", "On", "Off"}});
     game.features.push_back({"board_sound", "Board", "Sound",
                              "Stereo: the board's EXTERNAL output, each effect on its side. Mono: its JAMMA output, as a cabinet with one "
                              "speaker has it (an effect made for both sides, the knock-out's say, then sounds twice as loud). Takes effect "
                              "when the game is reset.",
-                             0, {"Stereo", "Mono (JAMMA)", "As the board has it"}});
+                             0, {"Stereo", "Mono (JAMMA)", "As the board is set"}});
 }
 
 } // namespace cps3recomp

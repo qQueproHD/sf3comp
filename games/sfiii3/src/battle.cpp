@@ -1971,7 +1971,7 @@ void RegisterBattle(Game &game) {
     for (const char *name : GuestStageNames()) { // (then New Generation's and 2nd Impact's, as training's Stage row has them)
         stages.push_back(name);
     }
-    game.features.push_back({"endless_stage", "Endless battle", "Stage",
+    game.features.push_back({"endless_stage", "Endless battle", "Stages",
                              "Where they fight. Scroll: the stages go by, one after another, and the fighters are carried along. "
                              "Shuffle: a stage that fades into another every so often. Or one stage: 3rd Strike's, or New "
                              "Generation's or 2nd Impact's (their sets beside this one's, sfiiin.zip and sfiii2n.zip).",

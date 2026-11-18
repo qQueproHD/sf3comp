@@ -147,9 +147,9 @@ void RegisterPortFeatures() {
                                   0, {"Off", "First button", "Every button"}});
     // (display_*: how the picture is fitted to the window, present.h; the first of each is how it always was)
     TheGame().features.push_back({"display_scaling", "Display", "Scaling",
-                                  "Sharp: as large as fits, each pixel a crisp block. Integer: every pixel the same whole "
+                                  "Sharp: as large as fits, each pixel a crisp block. Whole pixels: every pixel the same whole "
                                   "number of the screen's pixels tall (a border round it). Smooth: softened all over.",
-                                  kFeatureEnhanced, {"Sharp", "Integer", "Smooth"}});
+                                  kFeatureEnhanced, {"Sharp", "Whole pixels", "Smooth"}});
     TheGame().features.push_back({"display_shape", "Display", "Picture shape",
                                   "4:3: as the arcade's monitor showed it. Square pixels: each pixel as wide as it is tall, "
                                   "a little wider than 4:3. Fill: the whole window or screen, stretched to it.",
@@ -169,7 +169,7 @@ void RegisterPortFeatures() {
                                   "Lottes and CRT Guest: flat monitors, sharp and bright. CRT Royale: the closest to a real "
                                   "monitor's glass and the slowest. CRT Light: lines and a faint mask, for a slow computer. "
                                   "Scanlines: the lines alone, light, strong, as an OSSC draws them, or dark (a black line "
-                                  "between each two, best with Integer). xBRZ and ScaleFX: the pixels' edges made smooth "
+                                  "between each two, best with Whole pixels). xBRZ and ScaleFX: the pixels' edges made smooth "
                                   "lines and curves. Your own: the first .slangp preset in the shaders folder beside the "
                                   "game's settings. The launcher chooses which of these the menu goes through. The picture's "
                                   "shape and size stay as set; the shader draws its pixels in place of Scaling.",

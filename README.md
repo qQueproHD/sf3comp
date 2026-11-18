@@ -91,7 +91,7 @@ games' stage code, run beside 3rd Strike's.
 
 ## Alternative modes (3rd Strike)
 
-The in-game menu's first row has ways to play the board never had: **survival**, **endless battle** (the game plays
+The in-game menu's Alternative modes page has ways to play the board never had: **survival**, **endless battle** (the game plays
 both fighters on stages that scroll or fade one into the next; touch the controls to take one over), **ring out**,
 a **tag team battle** (tag your partner in, or two against two for four players), the **bonus games** straight
 away, a **stage viewer**, a **model viewer** and a **colour editor** whose colours you then fight in. And **Gill**,

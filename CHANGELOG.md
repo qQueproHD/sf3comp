@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **The in-game menu laid out as in the other recomp ports** (recomp-common's standard layout): Online, Display,
+  Game, Replays and Stage first; then Alternative modes. In New Generation, 2nd Impact, 3rd Strike 990608 and 4rd
+  Strike, Training mode (and Dummy under it) is now under Alternative modes, as in 3rd Strike. Some words as the
+  other ports have them: Scaling's **Whole pixels** (was Integer), the Board page's **As the board is set** (was As
+  the board has it), the endless battle's **Stages**. Settings already chosen stay as they are.
+- **The mouse in the in-game menu**: pointing at a row chooses it, a click does what Enter does, the right button goes
+  back a page and the wheel goes up and down. The keypad's Enter confirms too.
 - **Each game's files on its page**: every game's page in the launcher has a **This game's files** card with that
   game's folder (its settings, saves, save states and logs) and a **Show** button that opens it.
 - **Dreamcast arranged can only be chosen with the disc**: the launcher's Custom soundtrack dropdown and the in-game

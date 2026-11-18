@@ -42,6 +42,12 @@ public:
     // gamepad buttons that are the same whatever the game's are set to: the arrows, the d-pad and the left
     // stick; Space, Enter and A choose; Backspace and B go back.
     Action Press(unsigned buttons);
+    // What the shared menu returned (its mouse's, say: recomp-common/menu_sdl.h, MouseEvent), as Press returns it
+    Action Take(const recomp::Menu::Chosen &chosen);
+    // The shared menu itself, for the mouse's events
+    recomp::Menu &Shared() {
+        return m_menu;
+    }
     // The "Sound" row: the frontend plays nothing while this is set (--mute starts with it set)
     bool muted = false;
     // The Replays page's rows after the game's commands' (the port's match replays): a title and what it says for
@@ -104,8 +110,6 @@ public:
     }
 
 private:
-    static void Speeds(recomp::MenuConfig &config);
-
     recomp::Menu m_menu;
     size_t m_command = 0, m_replay = 0;
     std::string m_waiting; // (a note given while the menu was closed: Note)
