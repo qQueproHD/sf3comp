@@ -379,6 +379,12 @@ const launcher::Collection& launcher::describe_collection() {
         c.room = room.c_str();
         c.room_protocol = port::Netplay::kLobbyProtocol;
         c.file_name = "ROM set";
+        // (the scene diorama, tools/diorama/diorama.html, cps2recomp's: shipped beside the games, opened in the browser; a
+        // row only where the file is, recomp-common's Collection::tools)
+        c.tools = {{"Scene diorama",
+                    "Opens the scenes you save in the games (Game > Scene export) in your browser as 3D cut-outs, to turn, pull apart "
+                    "and photograph.",
+                    "Open diorama", "diorama.html"}};
         c.online_features = "Online"; // (the ping and the input delay on the screen: port/main.cpp)
         c.online_intro = "Play someone on another machine: join a match a player is hosting, or host one in any of your games for others to "
                          "join, or invite someone from the waiting room. A game's own page has its Online card too, for a match with a code "
