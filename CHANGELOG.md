@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **SVG pictures** (cps2recomp's): the Game page's **SVG pictures too** writes an SVG beside each screenshot's PNG
+  (F12): each pixel a square, so it scales to any size exactly, in the Display page's shape. Drawn, it is its PNG
+  pixel for pixel.
 - **Instant replay** (cps2recomp's, every game): the Video page's **Save replay** (Alt+Shift+F12) saves the last 30
   seconds just played as a video, with no recording started (**Replay length**: 30, 60 or 10 seconds, or off). The
   game keeps a state every second and every frame's controls, and plays them again into the video beside the game,

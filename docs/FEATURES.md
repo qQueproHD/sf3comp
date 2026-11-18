@@ -14,6 +14,7 @@ prints them all with their descriptions. Online, the host's choices of the ones 
 | Board | Difficulty, damage, timer speed, rounds, event, bonus games, continue, demo sound, sound output (stereo or the cabinet's mono); the board's test menu |
 | Display | Scaling, picture shape (4:3 or square pixels), RetroArch shaders, zoom on a fighter or both, vsync, window size |
 | Sound | Custom soundtrack (your own files, by song or as a playlist) |
+| Screenshots | F12, as PNG; SVG pictures too |
 | Video | Record video (Alt+F12), video size, save replay (Alt+Shift+F12) and its length, show the videos folder |
 | Online | Ping and input delay shown, names hidden |
 | Display | Input lag readout |
@@ -25,6 +26,19 @@ cheats, training mode and the dummy, widescreen, online play, replays, run-ahead
 
 How each part works and what it was checked against: [games/sfiii3/PROGRESS.md](../games/sfiii3/PROGRESS.md),
 [games/sfiii3/DEFINITIVE.md](../games/sfiii3/DEFINITIVE.md) (the stages), [docs/TIMING.md](TIMING.md) (arcade timing).
+
+## Screenshots
+
+F12 saves the picture as the window shows it, at the board's size (384 by 224, wider in widescreen), with the readouts
+on it but not the camera's zoom, to `screenshots/` in the game's folder, as `<game> <date> <time>.png`. Where it went is
+said at the bottom for a few seconds.
+
+**SVG pictures too** (the Game page's `export_svg`, cps2recomp's) writes an SVG beside each screenshot's PNG. Each of the
+board's pixels is a square of the SVG's grid, so it scales to any size exactly: what a row has of a colour side by side is
+one rectangle, made taller where the rows below have the same, each colour's rectangles one path, and the picture's
+commonest colour one rectangle behind it all (`image_files::WriteSvg`, cps2recomp's `model/image_files.h`). It is shown
+three times the board's lines, its pixels in the Display page's shape (`port::SvgSize`), and drawn with
+`shape-rendering="crispEdges"`. Drawn, it is the PNG pixel for pixel.
 
 ## Video recording
 

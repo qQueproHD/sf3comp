@@ -9,6 +9,7 @@
 #include "../runtime/state.h"
 #include "hud.h"
 #include "png_write.h"
+#include "image_files.h"
 #include "present.h"
 #include "port.h"
 #include "dreamcast.h"
@@ -203,6 +204,11 @@ void RegisterPortFeatures() {
                                       "at a time or slowed, and to play on from any moment. Not in training.",
                                       kFeatureEnhanced});
     }
+    // (SVG beside the PNGs: cps2recomp's issue #368, image_files.h's WriteSvg)
+    TheGame().features.push_back({"export_svg", "Game", "SVG pictures too",
+                                  "Screenshots (F12) also write an SVG picture beside their PNG: each pixel a square, so it "
+                                  "scales to any size exactly, in the Display page's shape.",
+                                  0});
     // (the video recording: Port::RecordVideo, video_record.h; cps2recomp's page, the same)
     TheGame().pages.push_back({"Video", "Game", "What you play and hear, recorded as an MP4 video that plays anywhere."});
     TheGame().commands.push_back({"video_record", "Video", "Record video",
@@ -783,6 +789,7 @@ void Port::Key(char key, unsigned n) {
     case '-': menu.Faster(-1); break;
     case '=': menu.Faster(1); break;
     case 'h': hurry = !hurry; break; // (tests: the frontend sets it while F is held)
+    case 's': Screenshot(); break; // (tests: F12, a screenshot, and its SVG with SVG pictures too)
     case 'l': leaving = net && !leaving; break; // (tests: online, Esc's "Leave the match?")
     case 'y': // (tests: ... answered yes)
         if (leaving) {
@@ -1395,6 +1402,21 @@ bool Port::Screenshot() {
     }
     fprintf(stderr, "screenshot: %s\n", path.c_str());
     shotSaid = "SCREENSHOT SAVED  screenshots/" + name + ".png";
+    if (FeatureOn("export_svg")) {
+        // (the same as an SVG: the Game page's SVG pictures too)
+        image_files::Picture picture;
+        picture.width = ShownWidth();
+        picture.height = Video::kHeight;
+        picture.pixels.resize(shown.size());
+        for (size_t n = 0; n < shown.size(); n++) {
+            picture.pixels[n] = shown[n] | 0xFF000000u;
+        }
+        double width = 0, height = 0;
+        port::SvgSize(picture.width, picture.height, width, height);
+        if (image_files::WriteSvg(folder + name + ".svg", picture, width, height)) {
+            shotSaid += " .svg";
+        }
+    }
     shotTicks = kSpeedTicks;
     return true;
 }
@@ -2691,7 +2713,7 @@ void Usage() {
             "  --trace LOW-HIGH:FILE  those bytes of work RAM after every frame, appended to FILE\n"
             "  --watch LOW[-HIGH]     report the 68000's writes to these addresses (hex), with who made them\n"
             "  --keys TICK:KEY,...    keys pressed at those ticks of the screen: p (stop/go), o (a frame on),\n"
-            "                         - and = (speed), n and h (a Multi game run's next game, fast forward on/off),\n"
+            "                         - and = (speed), n and h (a Multi game run's next game, fast forward on/off), s (F12),\n"
             "                         k1.. (the game's command keys), cNAME (a command),\n"
             "                         fNAME=N (a feature set)\n"
             "  --stats                speed, at the end\n"
