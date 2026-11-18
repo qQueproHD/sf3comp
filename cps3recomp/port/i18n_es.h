@@ -26,6 +26,20 @@ inline constexpr recomp::i18n::Entry kSpanish[] = {
     {"RECORDING VIDEO", "GRABANDO VÍDEO"},
     {"VIDEO SAVED", "VÍDEO GUARDADO"},
     {"VIDEO NOT SAVED", "VÍDEO NO GUARDADO"},
+    {"30 seconds", "30 segundos"},
+    {"10 seconds", "10 segundos"},
+    {"Save replay", "Guardar repetición"},
+    {"Saves what was just played, as long as Replay length says, as a video in videos (as Record video's, its sound too): kept all the while, so it needs no recording started. Made beside the game in a few seconds, which goes on meanwhile. Also Alt+Shift+F12.", "Guarda lo que se acaba de jugar, tanto como diga Duración de la repetición, como un vídeo en videos (como el de Grabar vídeo, también con su sonido): se guarda todo el tiempo, así que no hace falta empezar a grabar. Se hace junto al juego en unos segundos, y el juego sigue mientras. También Alt+Shift+F12."},
+    {"Replay length", "Duración de la repetición"},
+    {"How much of what was just played Save replay saves. Kept as a save state every second (what each has the same as the one before kept once) and the controls of every frame: 30 seconds of it is about 40 megabytes of memory, 60 on another game's stage. Not online.", "Cuánto de lo que se acaba de jugar guarda Guardar repetición. Se guarda como un estado cada segundo (lo que cada uno tiene igual que el anterior, una sola vez) y los controles de cada frame: 30 segundos son unos 40 megabytes de memoria, 60 en el escenario de otro juego. No en línea."},
+    {"60 seconds", "60 segundos"},
+    {"Off", "No"},
+    {"A REPLAY IS STILL BEING SAVED", "TODAVÍA SE ESTÁ GUARDANDO UNA REPETICIÓN"},
+    {"NOTHING TO REPLAY YET", "AÚN NO HAY NADA QUE REPETIR"},
+    {"REPLAY LENGTH IS OFF", "LA DURACIÓN DE LA REPETICIÓN ESTÁ EN NO"},
+    {"REPLAY NOT SAVED", "REPETICIÓN NO GUARDADA"},
+    {"SAVING REPLAY...", "GUARDANDO REPETICIÓN..."},
+    {"REPLAY SAVED", "REPETICIÓN GUARDADA"},
 };
 
 } // namespace port

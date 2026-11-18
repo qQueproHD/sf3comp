@@ -14,7 +14,7 @@ prints them all with their descriptions. Online, the host's choices of the ones 
 | Board | Difficulty, damage, timer speed, rounds, event, bonus games, continue, demo sound, sound output (stereo or the cabinet's mono); the board's test menu |
 | Display | Scaling, picture shape (4:3 or square pixels), RetroArch shaders, zoom on a fighter or both, vsync, window size |
 | Sound | Custom soundtrack (your own files, by song or as a playlist) |
-| Video | Record video (Alt+F12), video size, show the videos folder |
+| Video | Record video (Alt+F12), video size, save replay (Alt+Shift+F12) and its length, show the videos folder |
 | Online | Ping and input delay shown, names hidden |
 | Display | Input lag readout |
 | Replays | Keep my matches (the Replays page lists them to watch and to play on from) |
@@ -49,3 +49,21 @@ left out and the one before shown longer, the sound all kept, rather than the ga
 records a whole run, from its first frame to its last, headless or not; headless (or `--unthrottled`) nothing is left
 out, the game waiting for the encoder instead, so `--movie M.txt --headless --record-video M.mp4` makes a movie's play
 into a video faster than it plays.
+
+**Save replay** (Alt+Shift+F12, the same page) saves what was just played as a video, with no recording started: the
+last 30 seconds, or 60 or 10 (**Replay length**; Off keeps nothing). All the while the port keeps the game's state once a
+second and every frame's controls (`Port::ReplayKeep`, before each frame runs). A CPS-3 state is about 10 MB, most of
+it the board's 8 MB of character RAM, and little of it changes in a second: each state kept shares its unchanged 64 KB
+blocks with the one before (`Port::InstantState`), so 30 seconds is about 36 MB. On a New Generation or 2nd Impact
+stage the stage board, which a save state does not hold, is kept beside each state the same way (about 60 MB).
+
+Asked for, the frames are run again from the oldest state with those controls, in place of the port's own machine and
+game, which are put back as they were after each tick (as run-ahead's frames are; the picture, the controls and the
+switches kept by hand, as for a spare), and the stage board stepped as play steps it (`Port::ReplayMake`). They are run
+in the time the window's tick has to spare before its next frame, a little over half of it, and only when that is more
+than a swap of the machines and a frame have been taking, so that the game goes on at its speed; on a fast machine a
+30-second replay is made in a few seconds. At each state kept the replay is put back to it, so that anything a frame
+run again does differently lasts a second at most. `games/sfiii3/checkreplay.sh` checks it: on 3rd Strike's own stage
+and on a guest stage, every picture and every frame's sound of the replay is the one the play had, and the play with a
+replay made is the play without one. The custom soundtrack is not in it (its player is the port's, not the game's),
+and online play keeps nothing.

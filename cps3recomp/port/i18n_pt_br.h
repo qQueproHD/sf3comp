@@ -26,6 +26,20 @@ inline constexpr recomp::i18n::Entry kPortuguese[] = {
     {"RECORDING VIDEO", "GRAVANDO VÍDEO"},
     {"VIDEO SAVED", "VÍDEO SALVO"},
     {"VIDEO NOT SAVED", "VÍDEO NÃO SALVO"},
+    {"30 seconds", "30 segundos"},
+    {"10 seconds", "10 segundos"},
+    {"Save replay", "Salvar replay"},
+    {"Saves what was just played, as long as Replay length says, as a video in videos (as Record video's, its sound too): kept all the while, so it needs no recording started. Made beside the game in a few seconds, which goes on meanwhile. Also Alt+Shift+F12.", "Salva o que acabou de ser jogado, pelo tempo que Duração do replay diz, como um vídeo em videos (como o de Gravar vídeo, com o som também): é guardado o tempo todo, então não é preciso começar a gravar. Feito ao lado do jogo em alguns segundos, e o jogo continua enquanto isso. Também Alt+Shift+F12."},
+    {"Replay length", "Duração do replay"},
+    {"How much of what was just played Save replay saves. Kept as a save state every second (what each has the same as the one before kept once) and the controls of every frame: 30 seconds of it is about 40 megabytes of memory, 60 on another game's stage. Not online.", "Quanto do que acabou de ser jogado Salvar replay salva. Guardado como um estado a cada segundo (o que cada um tem igual ao anterior, uma vez só) e os controles de cada frame: 30 segundos são uns 40 megabytes de memória, 60 no cenário de outro jogo. Não online."},
+    {"60 seconds", "60 segundos"},
+    {"Off", "Desligado"},
+    {"A REPLAY IS STILL BEING SAVED", "UM REPLAY AINDA ESTÁ SENDO SALVO"},
+    {"NOTHING TO REPLAY YET", "AINDA NÃO HÁ NADA PARA O REPLAY"},
+    {"REPLAY LENGTH IS OFF", "A DURAÇÃO DO REPLAY ESTÁ DESLIGADA"},
+    {"REPLAY NOT SAVED", "REPLAY NÃO SALVO"},
+    {"SAVING REPLAY...", "SALVANDO REPLAY..."},
+    {"REPLAY SAVED", "REPLAY SALVO"},
 };
 
 } // namespace port
