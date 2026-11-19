@@ -351,7 +351,7 @@ struct Port {
     // Online play (netplay.h): the other side found before the first frame, and each frame run through it
     std::unique_ptr<Netplay> net;
     bool connecting = false; // (the other side not found yet: a window shows the wait)
-    bool leaving = false;    // (online: Esc asked whether to leave the match; said on the screen until answered)
+    bool leaving = false;    // (online, waiting: Esc asked whether to leave; said on the screen until answered)
     bool cameIn = false;
     // Online: each side's win streak (matches won in a row, the other player's against them), counted in the fights
     // both players have pressed Start for (fight/battle.h: the round's result, and the rounds a match is won with); said
@@ -395,6 +395,24 @@ struct Port {
     uint64_t hostNoteUntil = 0;
     // Esc's question answered yes: the match left, and the game with it unless it was hosted from the menu
     void LeaveOnline();
+    // Online, the modes played in a match (Netplay::Command): an event of `player`'s, run on both sides before frame
+    // `at`: "mode=N:SEED" (the host's: Game::startOnline) and "row=value" (a player's own fighters and their super arts on
+    // the Tag team battle page: player 1's rows the host's, player 2's the other's), commas between. A mode starts with
+    // each row as the events before its frame left it (onlinePickLog: a rollback may have run a later pick already)
+    void OnlineEvent(int player, const std::string &text, uint64_t at);
+    std::map<std::string, std::map<uint64_t, int>> onlinePickLog;
+    std::map<std::string, int> onlinePickBase; // (each row as it was before its first event)
+    // Esc in a match: the match's own menu (Menu::OpenOnline), drawn over the game, which goes on: the host's modes to
+    // start (OnlineCommand), this player's own picks for them (onlinePicks, sent as events), leaving. Watching, or a
+    // host waiting, Esc asks only whether to leave (`leaving`, answered by LeaveQuestion)
+    void OpenOnlineMenu();
+    void OnlineCommand(size_t index);
+    void LeaveQuestion(unsigned pressed);
+    std::vector<int> onlineModes;           // (the menu's commands' modes, in its order)
+    std::vector<std::string> onlineRows;    // (the menu's features' rows: the game's features they stand for)
+    std::map<std::string, int> onlinePicks; // (this player's picks as chosen, before their events have run)
+    void HearEvents();
+    std::string onlineShot; // (tests, --menu online: the picture with the match's menu, written once the frame is drawn)
     void Matched();
     void ArcadeFrame(); // (--net-arcade: the host's own play while it waits for the other player)
     // A window's match that ended with the other side gone: the host waits for them to come back (the same code, or

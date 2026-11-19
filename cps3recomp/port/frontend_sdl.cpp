@@ -615,12 +615,15 @@ int RunWindowed(Port &port) {
     bool stickWaiting = false;
     auto toggleMenu = [&]() {
         if (port.net) {
-            // (online: no menu, the game goes on for both players; Esc gives up a wait, and in a match asks whether to
-            // leave it: Port::leaving)
+            // (online: the game goes on for both players; Esc gives up a wait, and in a match opens the match's own menu
+            // over it, or asks whether to leave when there is nothing to choose: Port::OpenOnlineMenu)
             if (port.connecting && !port.net->Arcade()) {
                 port.LeaveOnline();
+            } else if (port.menu.IsOpen() || port.leaving) {
+                port.menu.Close();
+                port.leaving = false;
             } else {
-                port.leaving = !port.leaving;
+                port.OpenOnlineMenu();
             }
             return;
         }
@@ -644,7 +647,7 @@ int RunWindowed(Port &port) {
     uint64_t openedByT = 0; // (when T opened it: its own letter, if the system sends it as text too, is not the line's)
     bool keysAfterChat = false;
     auto chatOpen = [&](bool open) {
-        if (open == port.typing || (open && (!port.net || port.connecting || port.leaving))) {
+        if (open == port.typing || (open && (!port.net || port.connecting || port.leaving || port.menu.IsOpen()))) {
             return;
         }
         port.typing = open;
@@ -875,7 +878,7 @@ int RunWindowed(Port &port) {
                 // (the mouse in the menu: over a row chooses it, a click confirms, the right button goes back, the wheel
                 // goes up and down; a touch made into a mouse event is the touch controls', touch.cpp)
                 recomp::Menu::Chosen chosen;
-                if (port.menu.IsOpen() && recomp::sdl::MouseEvent(ev, window, menuPlace, port.menu.Shared(), chosen)) {
+                if (port.menu.IsOpen() && !port.net && recomp::sdl::MouseEvent(ev, window, menuPlace, port.menu.Shared(), chosen)) {
                     port.MenuAct(port.menu.Take(chosen));
                     menuDirty = true;
                     if (!port.menu.IsOpen()) {
@@ -1020,15 +1023,13 @@ int RunWindowed(Port &port) {
                     port.menu.Note(""); // (a press of something else still takes the note away)
                     menuDirty = true;
                 }
-                if (!port.menu.IsOpen()) {
-                    heldAtClose = previousPad;
+                if (!port.menu.IsOpen() || port.net) {
+                    heldAtClose = previousPad; // (online, the game goes on: this side's player stands still meanwhile)
                 }
             } else if (port.leaving) {
                 // (online, "Leave the match?": Confirm leaves it, Back stays; this side's player stands still meanwhile)
-                if (menuPressed & recomp::kMenuConfirm) {
-                    port.LeaveOnline();
-                } else if (menuPressed & recomp::kMenuBack) {
-                    port.leaving = false;
+                if (menuPressed) {
+                    port.LeaveQuestion(menuPressed);
                 }
                 heldAtClose = previousPad;
             }
@@ -1142,7 +1143,8 @@ int RunWindowed(Port &port) {
             presenter.SetOverlay(touchPicture.empty() ? nullptr : touchPicture.data(), touchWidth, touchHeight);
         }
 
-        if (port.menu.IsOpen()) {
+        if (port.menu.IsOpen() && !port.net) {
+            // (online, the game goes on, the menu drawn on its picture: Port::Shown)
             // The game's picture as it was, with the menu over it: on the GPU (the menu, and what Shown puts over the
             // picture, an overlay of the menu's picture's size over the frame's picture made as large: NativeGpu::Overlay),
             // or the CPU's picture (not through a shader: the menu is drawn three times the board's size, and is not the

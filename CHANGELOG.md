@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Tag team battle online** (3rd Strike): in a match, Esc opens the in-game menu over the running game (it goes on for
+  both players; your fighter stands still while it is open). Its **Online match** page has the host's **Start Tag team
+  battle** and **Back to Versus**, and each player's own team: the fighters and their **super arts**. Both teams are
+  people, the stage one of 3rd Strike's; the rest of the Tag team battle page (style, fighters a team, stage) is the
+  host's. The page's first fighter, second and third now have a **super art** row each offline too (I, II or III).
 - **Scene export: parts, objects, overlays** (cps2recomp's): in a round, a scene and a clip's frames are also split by
   what is in them: the stage behind, each player, the stage in front, the panel and the rest; a saved scene has each
   object by itself (`entries.png`, `entry-map.png`); in training, the hit boxes and the readout are overlays of their

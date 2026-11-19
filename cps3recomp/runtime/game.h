@@ -119,6 +119,11 @@ struct Game {
     bool (*fighting)() = nullptr;
     // ... and what a replay's row says of the match, asked as it begins ("Ken vs Chun-Li"). Not given: its time alone.
     std::string (*matchLabel)() = nullptr;
+    // Online (port/netplay.h, Netplay::Command): a mode started for both players, on both machines before the same frame,
+    // with the same dice (`seed`): 0 Versus (the mode ended, the board started again), 2 the tag team battle (its page's
+    // rows as the host has them, the players' own fighters as their events set them). False: not this game's. Not
+    // given: only Versus online.
+    bool (*startOnline)(Machine &machine, int mode, uint32_t seed) = nullptr;
     // With the board's timing (the port's arcade_timing feature) the game's own code runs in place of the readable
     // rewrites, whose time is only what their originals' takes without the board's waits: unless this says the
     // rewrites are needed now (training mode, a mode of the sources' own, widescreen, a cheat that works inside

@@ -61,9 +61,10 @@ public:
     static constexpr int kDefaultPort = 7845;
     // The packets' layout (2: the host's state sent at the start); two copies must have the same to play, and the
     // lobby shows only matches of this one (the launcher asks with it too)
-    static constexpr int kProtocol = 6; // (3: the version said in the hello and to the service; 4: the welcome's flags;
+    static constexpr int kProtocol = 7; // (3: the version said in the hello and to the service; 4: the welcome's flags;
                                         // 5: the welcome's program words, so two regions' sets play together;
-                                        // 6: each player's name in the hello and the welcome, and the chat)
+                                        // 6: each player's name in the hello and the welcome, and the chat;
+                                        // 7: events with the controls, for the modes played in a match: Command)
     // The number said to the introduction service for kProtocol, which lists a lobby's matches and a waiting room's
     // players by it: this toolkit's own (3000 and up), so that its lobby and waiting room are its games' alone and
     // not cps2recomp's (until 2026-11-12 the two shared cps2recomp's service; now this collection has its own, online/)
@@ -169,6 +170,12 @@ public:
     static constexpr size_t kChatMost = 60;
     void Say(const std::string &text);
     std::vector<std::string> TakeHeard();
+    // The modes played in a match (Port::OnlineEvent): an event of this side's player, run on both sides before the
+    // frame its controls are for (sent with them, again until the other side has them), player 1's before player 2's;
+    // a side that has run past it on guessed controls goes back to it, as for a wrong guess. And the events that have
+    // come or been made since this was last asked (whose, and what), for the screen to say
+    void Command(const std::string &text);
+    std::vector<std::pair<int, std::string>> TakeEvents();
 
 private:
     Settings settings;
@@ -262,6 +269,12 @@ private:
     uint64_t saidAt = 0;
     std::vector<std::string> heard;
     void SendChat(uint64_t now);
+    // (events: each player's, by the frame they happen before; this side's waiting for its next frame; the earliest
+    // frame an event came for that has been run already; those to say)
+    std::map<uint64_t, std::string> events[2];
+    std::vector<std::string> commanded;
+    uint64_t eventFrom = UINT64_MAX;
+    std::vector<std::pair<int, std::string>> eventNotices;
 
     void Send(const std::vector<uint8_t> &packet);
     void SendTo(const NetAddress &to, const std::vector<uint8_t> &packet);

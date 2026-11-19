@@ -22,16 +22,33 @@ namespace port {
 
 class Menu {
 public:
-    enum class Action { None, Save, Load, Coin, Start2, Test, Reset, ResetOptions, Command, Replay, Quit };
+    enum class Action { None, Save, Load, Coin, Start2, Test, Reset, ResetOptions, Command, Replay, Quit, OnlineCommand, Leave };
 
     Menu();
     // withStates: show the save state rows
     void Open(bool withStates);
+    // During an online match (Port::OpenOnlineMenu): the match's own menu, drawn small over the game, which goes on for
+    // both players. It opens on its Online match page (the host's modes to start, as commands; this player's own picks,
+    // as features), and its first page has that page, Mute, Resume and leaving the match. A command chosen is
+    // Action::OnlineCommand (Command(): its place in `commands`), leaving Action::Leave.
+    struct Online {
+        std::vector<recomp::MenuFeature> features;
+        std::vector<recomp::MenuCommand> commands;
+        std::function<int(size_t feature)> value;
+        std::function<void(size_t feature, int value)> setValue;
+        std::string leave, leaveDescription;
+    };
+    static constexpr const char *kOnlinePage = "Online match";
+    void OpenOnline(Online online);
+    bool OnlineOpen() const {
+        return m_online && m_onlineMenu.IsOpen();
+    }
     void Close() {
         m_menu.Close();
+        m_onlineMenu.Close();
     }
     bool IsOpen() const {
-        return m_menu.IsOpen();
+        return m_menu.IsOpen() || m_onlineMenu.IsOpen();
     }
     // Buttons newly pressed (cps3recomp::Button bits): Up/Down choose, any punch, kick or Start changes or
     // goes into a page, Left/Right change a row with several values.
@@ -46,7 +63,7 @@ public:
     Action Take(const recomp::Menu::Chosen &chosen);
     // The shared menu itself, for the mouse's events
     recomp::Menu &Shared() {
-        return m_menu;
+        return Shown();
     }
     // The "Sound" row: the frontend plays nothing while this is set (--mute starts with it set)
     bool muted = false;
@@ -93,15 +110,15 @@ public:
     // A line to tell the player (why not, say), until the next press; given while the menu is closed (a choice the
     // launcher made, taking effect at the start), it waits and is shown when the menu next opens
     void Note(const std::string &text) {
-        if (m_menu.IsOpen()) {
-            m_menu.Note(text);
+        if (IsOpen()) {
+            Shown().Note(text);
         } else {
             m_waiting = text;
         }
     }
     // Over a picture of 32-bit pixels (red in the low byte)
     void Draw(uint32_t *pixels, int width, int height) const {
-        m_menu.Draw(pixels, width, height);
+        Shown().Draw(pixels, width, height);
     }
     // The rows in small letters, close together, for a screen of few lines (the Arcade monitor page's Compact menu)
     void SetCompact(bool compact) {
@@ -112,7 +129,17 @@ public:
     }
 
 private:
+    // (the menu open, or last open: the online match's while it is)
+    recomp::Menu &Shown() {
+        return m_online ? m_onlineMenu : m_menu;
+    }
+    const recomp::Menu &Shown() const {
+        return m_online ? m_onlineMenu : m_menu;
+    }
+
     recomp::Menu m_menu;
+    recomp::Menu m_onlineMenu; // (made afresh at each OpenOnline: on its page, its first row)
+    bool m_online = false;
     size_t m_command = 0, m_replay = 0;
     std::string m_waiting; // (a note given while the menu was closed: Note)
 };

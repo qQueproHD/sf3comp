@@ -31,6 +31,8 @@
 #include <cstring>
 #include <ctime>
 #include <filesystem>
+#include <iterator>
+#include <random>
 #include <set>
 #include <thread>
 #ifdef _WIN32
@@ -83,8 +85,8 @@ bool Movie::Save(const std::string &path) const {
 }
 
 namespace {
-    constexpr uint32_t kStateVersion = 4; // (2: the colours made again from colour RAM, not kept; 3: the custom soundtrack's place;
-                                          // 4: the native mixer's voices)
+    constexpr uint32_t kStateVersion = 5; // (2: the colours made again from colour RAM, not kept; 3: the custom soundtrack's place;
+                                          // 4: the native mixer's voices; 5: the team battle's super arts and online flag)
 
     bool ReadFile(const std::string &path, std::vector<uint8_t> &data) {
         FILE *f = fopen(path.c_str(), "rb");
@@ -715,6 +717,13 @@ void Port::MenuAct(Menu::Action action) {
         quit = true;
         menu.Close();
         return;
+    case Menu::Action::OnlineCommand:
+        OnlineCommand(menu.Command());
+        return;
+    case Menu::Action::Leave:
+        menu.Close();
+        LeaveOnline();
+        return;
     case Menu::Action::Command: {
         RunCommand(menu.Command());
         const auto &commands = TheGame().commands;
@@ -827,9 +836,17 @@ void Port::Key(char key, unsigned n) {
     case '=': menu.Faster(1); break;
     case 'h': hurry = !hurry; break; // (tests: the frontend sets it while F is held)
     case 's': Screenshot(); break; // (tests: F12, a screenshot, and its SVG with SVG pictures too)
-    case 'l': leaving = net && !leaving; break; // (tests: online, Esc's "Leave the match?")
-    case 'y': // (tests: ... answered yes)
-        if (leaving) {
+    case 'l': // (tests: online, Esc: the match's menu, or the question whether to leave)
+        if (net && (menu.IsOpen() || leaving)) {
+            menu.Close();
+            leaving = false;
+        } else if (net) {
+            OpenOnlineMenu();
+        }
+        break;
+    case 'y': // (tests: ... the match left)
+        if (net && (leaving || menu.OnlineOpen())) {
+            menu.Close();
             LeaveOnline();
         }
         break;
@@ -990,6 +1007,7 @@ bool Port::Tick() {
         // sources take it somewhere); no stopping, slowing or speeding up
         const bool ready = net->Ready(frame);
         HearChat();
+        HearEvents();
         if (!opt.netTyping.empty()) {
             typing = true;
             typed = opt.netTyping;
@@ -1313,9 +1331,15 @@ void Port::ShownOver(std::vector<uint32_t> &pixels, std::vector<SDL_Rect> *panel
             line(it->text, it->own ? recomp::text::Color{170, 200, 255, 255} : recomp::text::Color{255, 255, 255, 255});
         }
     }
-    // (online: Esc's question, in the middle, over the game, which goes on; the port's own, not the readout, which the
-    // game's sources set every frame. --net-arcade's wait: whether to stop hosting, the game stopped meanwhile)
-    if (net && leaving) {
+    // (online: the match's menu (Port::OpenOnlineMenu), over the game, which goes on; the port's own, not the readout,
+    // which the game's sources set every frame. Esc's question when there is no match to choose for (--net-arcade's
+    // wait: whether to stop hosting, the game stopped meanwhile)
+    if (net && menu.OnlineOpen()) {
+        menu.Draw(pixels.data(), across, Video::kHeight);
+        if (panels) {
+            panels->push_back({0, 0, across, Video::kHeight});
+        }
+    } else if (net && leaving) {
         const recomp::text::Canvas canvas{pixels.data(), across, Video::kHeight};
         const bool hosting = connecting;
         const char *question = hostedFromMenu ? "Leave the match?" : hosting ? "Stop hosting and quit?" : "Leave the match?";
@@ -2358,6 +2382,171 @@ void Port::BackToSolo(bool stillHosting) {
     fprintf(stderr, "online: playing alone again, still hosting\n");
 }
 
+namespace {
+    // The modes played online (Game::startOnline), by number, and their names
+    constexpr const char *kOnlineModes[] = {"Versus", "Ball battle", "Tag team battle"};
+    const Feature *FindFeature(const std::string &name) {
+        for (const Feature &feature : TheGame().features) {
+            if (name == feature.name) {
+                return &feature;
+            }
+        }
+        return nullptr;
+    }
+    // A player's own rows on the Tag team battle page (player 1's the host's, player 2's the other side's)
+    bool OwnRow(int player, const std::string &row) {
+        return row.rfind(player == 0 ? "team_1_" : "team_2_", 0) == 0;
+    }
+    bool TagTeamOnline() {
+        return TheGame().startOnline && FindFeature("team_size") && FindFeature("team_1_1");
+    }
+} // namespace
+
+void Port::OnlineEvent(int player, const std::string &text, uint64_t at) {
+    for (size_t from = 0; from < text.size();) {
+        const size_t comma = std::min(text.find(',', from), text.size());
+        const std::string item = text.substr(from, comma - from);
+        from = comma + 1;
+        const size_t eq = item.find('=');
+        if (eq == std::string::npos) {
+            continue;
+        }
+        const std::string name = item.substr(0, eq);
+        if (name == "mode" && player == 0 && TheGame().startOnline) {
+            const int mode = atoi(item.c_str() + eq + 1);
+            const size_t colon = item.find(':', eq);
+            const uint32_t seed = colon == std::string::npos ? 1 : static_cast<uint32_t>(strtoul(item.c_str() + colon + 1, nullptr, 10));
+            // (each row as the events before this frame left it: a rollback back to here may have run later ones already)
+            for (const auto &[row, log] : onlinePickLog) {
+                auto it = log.upper_bound(at);
+                const int value = it == log.begin() ? onlinePickBase[row] : std::prev(it)->second;
+                SetFeatureForNow(row.c_str(), value);
+            }
+            TheGame().startOnline(*machine, mode, seed);
+        } else if (OwnRow(player, name)) {
+            const Feature *feature = FindFeature(name);
+            const int value = atoi(item.c_str() + eq + 1);
+            if (feature && value >= 0 && value < static_cast<int>(std::max<size_t>(feature->choices.size(), 2))) {
+                if (!onlinePickBase.count(name)) {
+                    onlinePickBase[name] = FeatureValue(feature->name);
+                }
+                onlinePickLog[name][at] = value;
+                SetFeatureForNow(feature->name, value);
+            }
+        }
+    }
+}
+
+void Port::OpenOnlineMenu() {
+    leaving = false;
+    if (!net || connecting) {
+        leaving = true; // (a host waiting: only Esc's question, Confirm leaves, Back stays)
+        return;
+    }
+    const int me = net->Local();
+    Menu::Online online;
+    onlineModes.clear();
+    onlineRows.clear();
+    if (TagTeamOnline()) {
+        if (net->Hosting()) {
+            // (the host's: the mode, a command that starts it for both, and Versus that ends it)
+            onlineModes = {2, 0};
+            online.commands.push_back({Menu::kOnlinePage, "Start Tag team battle",
+                                       "Starts the tag team battle for both players, with your settings of its page from before the "
+                                       "match (style, fighters, stage), and each player's own fighters and super arts below."});
+            online.commands.push_back({Menu::kOnlinePage, "Back to Versus",
+                                       "Ends the mode for both players: the board starts again, and each presses Start to come back in."});
+        }
+        const int size = FeatureValue("team_size") == 1 ? 3 : 2;
+        static const char *const kOrder[3] = {"first", "second", "third"};
+        for (int n = 0; n < size; n++) {
+            const std::string row = "team_" + std::to_string(me + 1) + "_" + std::to_string(n + 1);
+            for (const std::string &feature : {row, row + "_art"}) {
+                const Feature *found = FindFeature(feature);
+                if (!found) {
+                    continue;
+                }
+                const bool art = feature.size() > row.size();
+                onlineRows.push_back(feature);
+                online.features.push_back(
+                    {Menu::kOnlinePage, std::string("Tag team: your ") + kOrder[n] + (art ? ", super art" : ""),
+                     art ? std::string("The super art your ") + kOrder[n] + " fighter takes: I, II or III, as character select lists them."
+                         : std::string("Your team's ") + kOrder[n] + " fighter in the tag team battle: someone at random, or this one. "
+                           "The other player sees your choice.",
+                     {found->choices.begin(), found->choices.end()}});
+            }
+        }
+    }
+    online.value = [this](size_t row) {
+        if (row >= onlineRows.size()) {
+            return 0;
+        }
+        const auto it = onlinePicks.find(onlineRows[row]);
+        return it != onlinePicks.end() ? it->second : FeatureValue(onlineRows[row].c_str());
+    };
+    online.setValue = [this](size_t row, int value) {
+        if (row < onlineRows.size() && net) {
+            onlinePicks[onlineRows[row]] = value;
+            net->Command(onlineRows[row] + "=" + std::to_string(value));
+        }
+    };
+    online.leave = net->Hosting() && hostedFromMenu ? "Leave the match (play alone)" : "Leave the match";
+    online.leaveDescription = net->Hosting() && hostedFromMenu ? "Ends the match for both: your own game comes back, still hosted."
+                                                               : "Ends the match for both players.";
+    menu.OpenOnline(std::move(online));
+}
+
+void Port::OnlineCommand(size_t index) {
+    if (net && index < onlineModes.size()) {
+        const uint32_t seed = static_cast<uint32_t>(std::random_device()()) | 1;
+        net->Command("mode=" + std::to_string(onlineModes[index]) + ":" + std::to_string(seed));
+    }
+    menu.Close();
+}
+
+void Port::LeaveQuestion(unsigned pressed) {
+    if (pressed & recomp::kMenuConfirm) {
+        LeaveOnline();
+    } else if (pressed & recomp::kMenuBack) {
+        leaving = false;
+    }
+}
+
+// What the events that have come or been made say, on the screen as the chat's lines do: the host's mode, a player's
+// fighters and super arts
+void Port::HearEvents() {
+    for (const auto &[player, text] : net->TakeEvents()) {
+        if (text.rfind("hello,", 0) == 0) {
+            continue; // (a player's own fighters as they came in with: not news)
+        }
+        const std::string name = net->Name(player);
+        const std::string who = player == net->Local() ? "You" : name.empty() ? (player == 0 ? "The host" : "Player 2") : name;
+        for (size_t at = 0; at < text.size();) {
+            const size_t comma = std::min(text.find(',', at), text.size());
+            const std::string item = text.substr(at, comma - at);
+            at = comma + 1;
+            const size_t eq = item.find('=');
+            if (eq == std::string::npos) {
+                continue;
+            }
+            const std::string row = item.substr(0, eq);
+            const int value = atoi(item.c_str() + eq + 1);
+            std::string said;
+            if (row == "mode" && player == 0 && value >= 0 && value < 3) {
+                said = who + (value == 0 ? " went back to Versus" : std::string(" started ") + kOnlineModes[value]);
+            } else if (const Feature *feature = FindFeature(row); feature && OwnRow(player, row) && value >= 0 &&
+                                                                   value < static_cast<int>(feature->choices.size())) {
+                const bool art = row.size() > 4 && row.compare(row.size() - 4, 4, "_art") == 0;
+                said = who + " picked " + (art ? "super art " : "") + feature->choices[value] + " (Tag team)";
+            }
+            if (!said.empty()) {
+                fprintf(stderr, "online: %s\n", said.c_str());
+                chat.push_back({said, tick + kChatTicks, player == net->Local()});
+            }
+        }
+    }
+}
+
 void Port::LeaveOnline() {
     leaving = false;
     if (hostedFromMenu) {
@@ -2445,6 +2634,9 @@ void Port::Matched() {
     streak[0] = streak[1] = roundsWon[0] = roundsWon[1] = 0;
     roundCounted = false;
     rejoin.clear();
+    onlinePickLog.clear();
+    onlinePickBase.clear();
+    onlinePicks.clear();
     frame = 0; // (the match's frames count from its start, on both sides)
     ReplayStop(false);
     ReplayEnd();
@@ -2531,11 +2723,21 @@ void Port::RunFrame() {
         const size_t first = opt.menuTest.find(':'), second = opt.menuTest.find(':', first + 1);
         const std::string keys =
             opt.menuTest.substr(first + 1, second == std::string::npos ? std::string::npos : second - first - 1);
-        menu.Open(true);
+        if (net && !connecting) {
+            // (online: the match's menu, over the game, which goes on; it is left open, as the player would leave it, and
+            // the picture written is the game's with it: Shown)
+            OpenOnlineMenu();
+        } else {
+            menu.Open(true);
+        }
         for (const char key : keys) {
             MenuAct(menu.Buttons(key == 'u' ? kUp : key == 'd' ? kDown : key == 'l' ? kLeft : key == 'r' ? kRight : key == 'a' ? kPunch1 : 0));
         }
-        if (second != std::string::npos && menu.IsOpen()) {
+        if (net && !connecting) {
+            if (second != std::string::npos) {
+                onlineShot = opt.menuTest.substr(second + 1);
+            }
+        } else if (second != std::string::npos && menu.IsOpen()) {
             std::vector<uint32_t> pixels;
             uint32_t width = 0, height = 0;
             // (CPS3RECOMP_MENU_SIZE=WxH: at that size, as on a screen of it; the menu compact as the Arcade monitor page says)
@@ -2548,7 +2750,9 @@ void Port::RunFrame() {
             menu.Draw(pixels.data(), static_cast<int>(width), static_cast<int>(height));
             WritePng(opt.menuTest.substr(second + 1).c_str(), pixels.data(), width, height);
         }
-        menu.Close();
+        if (!net || connecting) {
+            menu.Close();
+        }
     }
     memcpy(machine->players, pad, sizeof(pad));
     machine->gpuPicture = gpuPresent && !menu.IsOpen() && !opt.board; // (Machine::gpuPicture; --board: the board model's picture)
@@ -2647,6 +2851,12 @@ void Port::RunFrame() {
     if (std::string said; scene.TakeSaid(said)) {
         shotSaid = SaidOfScene(said);
         shotTicks = kSpeedTicks;
+    }
+    if (!onlineShot.empty()) {
+        std::vector<uint32_t> shown;
+        Shown(shown);
+        WritePng(onlineShot.c_str(), shown.data(), static_cast<uint32_t>(ShownWidth()), Video::kHeight);
+        onlineShot.clear();
     }
     if (opt.shotEvery && frame % opt.shotEvery == 0) {
         char shot[512];
