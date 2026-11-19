@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.2.0-beta.2
+
+**4rd Strike joins the collection, 3rd Strike's Tag team battle can be played online, the game can record video
+and save the last 30 seconds as a replay, scenes export as layers for the diorama, and the in-game menu has the
+other recomp ports' layout and the mouse.** Pre-release, as 0.2.0-beta.1 was.
+
 - **Scene export with run-ahead**: with Run-ahead on, a saved scene and a clip were kept whole (one layer, the
   picture) in a fight: the layers were drawn from the frame the game goes back to, not the frame shown. They are now
   taken of the frame shown, and come apart as without it. A fight's parts also put in front the player the picture
