@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Tag team battle online** (3rd Strike): in a match, Esc opens the in-game menu over the running game (it goes on for
+  both players; your fighter stands still while it is open). Its **Online match** page has the host's **Start Tag team
+  battle** and **Back to Versus**, and each player's own team: the fighters and their **super arts**. Both teams are
+  people, the stage one of 3rd Strike's; the rest of the Tag team battle page (style, fighters a team, stage) is the
+  host's. The page's first fighter, second and third now have a **super art** row each offline too (I, II or III).
 - **Each game's files on its page**: every game's page in the launcher has a **This game's files** card with that
   game's folder (its settings, saves, save states and logs) and a **Show** button that opens it.
 - **Dreamcast arranged can only be chosen with the disc**: the launcher's Custom soundtrack dropdown and the in-game

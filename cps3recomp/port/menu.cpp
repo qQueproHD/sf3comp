@@ -16,7 +16,7 @@ namespace port {
 
 namespace {
     // The first page's own rows
-    enum { kCoin = 1, kStart2, kReset, kTest, kResetOptions };
+    enum { kCoin = 1, kStart2, kReset, kTest, kResetOptions, kLeave };
 
     // The speeds, slowest first, each about 1.4 times the one before: the game runs `frames` frames in `ticks` of
     // the screen's
@@ -29,7 +29,32 @@ namespace {
     constexpr int kFull = 6;
 } // namespace
 
+void Menu::OpenOnline(Online online) {
+    m_menu.Close();
+    recomp::MenuConfig config;
+    config.groups = {{{recomp::MenuRow::Page, 0, kOnlinePage}},
+                     {{recomp::MenuRow::Mute}, {recomp::MenuRow::Resume}},
+                     {{recomp::MenuRow::Action, kLeave, online.leave, online.leaveDescription}}};
+    config.pages.push_back({kOnlinePage, "", "The match's modes and your own picks for them.", false});
+    config.features = std::move(online.features);
+    config.commands = std::move(online.commands);
+    config.value = std::move(online.value);
+    config.setValue = std::move(online.setValue);
+    config.muted = [this] { return muted; };
+    config.setMuted = [this](bool to) { muted = to; };
+    config.confirmName = "Enter or A";
+    config.closeName = "Esc";
+    m_onlineMenu = recomp::Menu();
+    m_onlineMenu.SetCompact(true); // (drawn on the game's own picture, at the board's size)
+    m_onlineMenu.Configure(std::move(config));
+    m_onlineMenu.Open();
+    m_onlineMenu.Buttons(recomp::kMenuConfirm); // (into the Online match page, its first row: the first page's first)
+    m_online = true;
+}
+
 void Menu::Open(bool withStates) {
+    m_online = false;
+    m_onlineMenu.Close();
     if (onOpen) {
         onOpen();
     }
@@ -178,27 +203,31 @@ Menu::Action Menu::Buttons(uint16_t pressed) {
         buttons |= recomp::kMenuConfirm;
     }
     // (a press of something else, a coin button say, still takes the note away, as it always did)
-    if (pressed && !buttons && m_menu.IsOpen()) {
-        m_menu.Note("");
+    if (pressed && !buttons && IsOpen()) {
+        Shown().Note("");
     }
     return Press(buttons);
 }
 
 Menu::Action Menu::Press(unsigned buttons) {
-    const recomp::Menu::Chosen chosen = m_menu.Buttons(buttons);
+    const recomp::Menu::Chosen chosen = Shown().Buttons(buttons);
     switch (chosen.kind) {
     case recomp::Menu::Chosen::Save: return Action::Save;
     case recomp::Menu::Chosen::Load: return Action::Load;
     case recomp::Menu::Chosen::Quit: return Action::Quit;
     case recomp::Menu::Chosen::Command:
         m_command = static_cast<size_t>(chosen.id);
+        if (m_online) {
+            return Action::OnlineCommand;
+        }
         if (m_command >= cps3recomp::TheGame().commands.size()) {
             m_replay = m_command - cps3recomp::TheGame().commands.size();
             return Action::Replay;
         }
         return Action::Command;
     case recomp::Menu::Chosen::Action:
-        return chosen.id == kCoin           ? Action::Coin
+        return chosen.id == kLeave          ? Action::Leave
+               : chosen.id == kCoin         ? Action::Coin
                : chosen.id == kStart2       ? Action::Start2
                : chosen.id == kTest         ? Action::Test
                : chosen.id == kResetOptions ? Action::ResetOptions

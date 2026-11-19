@@ -125,6 +125,10 @@ namespace {
         if (name.rfind("widescreen", 0) == 0 || category == "Game" || category == "Board" || name == "stage") {
             return Share::Host;
         }
+        if (category == "Tag team battle") {
+            return Share::Host; // (the modes played in a match, Port::OnlineEvent: the page as the host has it, each
+                                // player's own fighters then sent by them)
+        }
         if (category == "Cheats") {
             return Share::Off; // (a fair match: no damage for the host's player, say, is not)
         }
@@ -1056,7 +1060,19 @@ int Netplay::Waiting(Port &port, std::string &error) {
             }
             at = comma + 1;
         }
+        // (this player's own fighters for player 2's side of the tag team battle, as they had them: sent as this side's
+        // first event, after the host's page is taken)
+        std::string mine;
+        for (const Feature &feature : TheGame().features) {
+            const std::string name = feature.name;
+            if (name.rfind("team_2_", 0) == 0) {
+                mine += (mine.empty() ? "" : ",") + name + "=" + std::to_string(FeatureSetting(feature.name));
+            }
+        }
         Settle(false, host);
+        if (!mine.empty()) {
+            Command("hello," + mine); // ("hello": not said on the screen, Port::HearEvents)
+        }
         stateSize = in.U32();
         state.assign(in.U32(), 0);
         if (!in.ok || stateSize == 0 || state.empty() || state.size() > (16u << 20)) {
@@ -1092,6 +1108,16 @@ void Netplay::Say(const std::string &text) {
         unheard.push_back({said++, line});
         SendChat(0);
     }
+}
+
+void Netplay::Command(const std::string &text) {
+    commanded.push_back(text);
+}
+
+std::vector<std::pair<int, std::string>> Netplay::TakeEvents() {
+    std::vector<std::pair<int, std::string>> out;
+    out.swap(eventNotices);
+    return out;
 }
 
 std::vector<std::string> Netplay::TakeHeard() {
@@ -1151,6 +1177,14 @@ void Netplay::SendInputs() {
     out.U32(static_cast<uint32_t>(now));
     out.U32(echo);
     out.U32(static_cast<uint32_t>(echoAt ? now - echoAt : 0));
+    // (this side's events for the frames whose controls are sent: Command)
+    auto event = events[local].lower_bound(first);
+    const auto end = events[local].lower_bound(localUpTo);
+    out.U8(static_cast<uint8_t>(std::min<ptrdiff_t>(std::distance(event, end), 255)));
+    for (int n = 0; event != end && n < 255; ++event, ++n) {
+        out.U32(static_cast<uint32_t>(event->first));
+        out.Text(event->second);
+    }
     Send(out.out);
 }
 
@@ -1199,8 +1233,24 @@ void Netplay::Take(const uint8_t *data, size_t size) {
     const uint64_t hashFrame = in.U32();
     const uint32_t hash = in.U32();
     const uint32_t sentAt = in.U32(), echoed = in.U32(), held = in.U32();
+    std::vector<std::pair<uint64_t, std::string>> came;
+    for (unsigned n = 0, count = in.U8(); n < count && in.ok; n++) {
+        const uint64_t at = in.U32();
+        came.push_back({at, in.Text()});
+    }
     if (!in.ok) {
         return;
+    }
+    // (the other side's events: each once, for a frame not yet confirmed; one for a frame already run on a guess
+    // takes the game back to it, Frame)
+    for (const auto &[at, text] : came) {
+        if (at >= confirmed && at < confirmed + kInputs && !events[remote].count(at)) {
+            events[remote][at] = text;
+            eventNotices.push_back({remote, text});
+            if (at <= current) { // (current: the last frame run, before Ready gives the next)
+                eventFrom = std::min(eventFrom, at);
+            }
+        }
     }
     lastHeard = NowMs();
     remoteFrame = std::max(remoteFrame, frame);
@@ -1285,6 +1335,13 @@ void Netplay::Run(Port &port, uint64_t at, bool drawing) {
     // (the other side's, or guessed as the last that came)
     k.used = at < remoteUpTo ? remoteInput[at % kInputs] : remoteUpTo ? remoteInput[(remoteUpTo - 1) % kInputs] : 0;
     players[remote] = k.used;
+    // (the events for this frame, player 1's first: Command)
+    for (int player = 0; player < 2; player++) {
+        const auto event = events[player].find(at);
+        if (event != events[player].end()) {
+            port.OnlineEvent(player, event->second, at);
+        }
+    }
     port.machine->drawing = drawing;
     port.Step(players);
     port.machine->drawing = true;
@@ -1299,6 +1356,15 @@ void Netplay::Frame(Port &port, uint16_t controls) {
     const uint64_t frame = port.frame;
     localInput[(frame + delay) % kInputs] = controls;
     localUpTo = frame + delay + 1;
+    if (!commanded.empty()) {
+        // (this side's events made since the last frame: for the frame these controls are for, with them)
+        std::string &line = events[local][frame + delay];
+        for (const std::string &text : commanded) {
+            line += (line.empty() ? "" : ",") + text;
+            eventNotices.push_back({local, text});
+        }
+        commanded.clear();
+    }
     // How far ahead of the other side this side is: the frame it is on, over what the other side said last
     ahead = ahead * 0.95 + (static_cast<double>(frame) - static_cast<double>(remoteFrame)) * 0.05;
     SendInputs();
@@ -1312,6 +1378,11 @@ void Netplay::Frame(Port &port, uint16_t controls) {
             break;
         }
     }
+    // (an event of the other side's that came for a frame already run: back to it too)
+    if (eventFrom >= confirmed && eventFrom < frame) {
+        wrong = std::min(wrong, eventFrom);
+    }
+    eventFrom = UINT64_MAX;
     if (wrong < upTo) {
         const size_t sound = port.machine->audio.size();
         port.PutBackState(kept[wrong % kKept].state, true);
@@ -1352,6 +1423,9 @@ void Netplay::Frame(Port &port, uint16_t controls) {
         }
     }
     confirmed = upTo;
+    // (events never run again: the other side's before the frames confirmed, this side's once it also has them)
+    events[remote].erase(events[remote].begin(), events[remote].lower_bound(confirmed));
+    events[local].erase(events[local].begin(), events[local].lower_bound(std::min(confirmed, remoteAck)));
     Compare();
     // The frame itself
     port.KeepState(kept[frame % kKept].state, true);

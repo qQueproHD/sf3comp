@@ -33,6 +33,7 @@ void ModelBeforeFrame(Machine &machine);
 void RegisterModel(Game &game);
 void RegisterColours(Game &game);
 void RegisterBattle(Game &game);
+bool StartBattleOnline(Machine &machine, int mode, uint32_t seed); // battle.cpp
 bool BattleOn();
 void RegisterRingOut(Game &game);
 void RegisterMusic(Game &game);
@@ -143,6 +144,7 @@ void RegisterGame() {
     RegisterWidescreen();
     RegisterMusic(game);
     RegisterBattle(game);
+    game.startOnline = StartBattleOnline;
     RegisterModel(game);
     // (the port's zoom on a fighter, port/zoom.h: where its feet are in the picture, while a round is fought; not in the
     // model viewer, which has sizes of its own)
