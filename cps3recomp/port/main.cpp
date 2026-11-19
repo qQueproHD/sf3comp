@@ -2867,7 +2867,8 @@ void Port::RunFrame() {
         memcpy(machine->players, pressed, sizeof(pressed));
         // (the scene clip's frame: the picture shown, run-ahead's (taken at the last frame run ahead, before the machine
         // is put back) or not, and the records it was drawn from)
-        RunAhead(scene.Recording() ? [](Port &port) { port.scene.Frame(*port.machine); } : nullptr);
+        void (*const clipFrame)(Port &) = [](Port &port) { port.scene.Frame(*port.machine); };
+        RunAhead(scene.Recording() ? clipFrame : nullptr);
     } else {
         ranAhead = 0;
     }
