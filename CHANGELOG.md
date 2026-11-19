@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Scene export: parts, objects, overlays** (cps2recomp's): in a round, a scene and a clip's frames are also split by
+  what is in them: the stage behind, each player, the stage in front, the panel and the rest; a saved scene has each
+  object by itself (`entries.png`, `entry-map.png`); in training, the hit boxes and the readout are overlays of their
+  own, the boxes listed with their player. The diorama shows them as cps2recomp's do.
 - **Scene export** (cps2recomp's, every game): the Game page's **Scene export**. **Save scene** (Shift+F12) saves the
   picture and each of its layers by itself as a see-through PNG (the board's tilemaps, the objects between them, the
   text layer; New Generation's or 2nd Impact's stage's layers too, in a fight on one), with a `scene.json` of their

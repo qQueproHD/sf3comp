@@ -52,7 +52,8 @@ Screen ScreenOf(const FrameRegisters &r) {
 void BuildDrawList(const std::vector<Object> &objects, const FrameRegisters &r, const Screen &screen, std::vector<DrawItem> &out) {
     out.clear();
     static constexpr int kTiles[4] = {8, 1, 2, 4};
-    for (const Object &o : objects) {
+    for (size_t index = 0; index < objects.size(); index++) {
+        const Object &o = objects[index];
         const uint32_t v1 = o.words[0], v2 = o.words[1], v3 = o.words[2];
         const uint32_t code = v1 >> 17;
         const bool flipX = (v1 >> 12) & 1, flipY = (v1 >> 11) & 1, blend = (v1 >> 10) & 1, granularity64 = (v1 >> 9) & 1;
@@ -73,6 +74,7 @@ void BuildDrawList(const std::vector<Object> &objects, const FrameRegisters &r, 
                     d.line = static_cast<int16_t>(line);
                     d.group = o.group;
                     d.priority = o.priority;
+                    d.object = static_cast<uint16_t>(index);
                     out.push_back(d);
                 }
             }
@@ -124,6 +126,7 @@ void BuildDrawList(const std::vector<Object> &objects, const FrameRegisters &r, 
                 d.blend = blend;
                 d.group = o.group;
                 d.priority = o.priority;
+                d.object = static_cast<uint16_t>(index);
                 out.push_back(d);
                 count++;
             }
@@ -221,6 +224,7 @@ void BuildFrame(const Video &v, const uint8_t *spriteRam, int margin, int shift,
     f.tiles.clear();
     f.tilePriority.clear();
     f.tileFrom.clear();
+    f.tileObject.clear();
     f.guest = false;
     f.guestVideo = nullptr;
     f.guestBufferWidth = f.guestBufferHeight = 0;
@@ -228,14 +232,20 @@ void BuildFrame(const Video &v, const uint8_t *spriteRam, int margin, int shift,
     f.bands = false;
     if (keep) {
         static thread_local std::vector<Object> kept;
+        static thread_local std::vector<uint16_t> keptIndex; // (each kept object's place in v.objects)
         kept.clear();
+        keptIndex.clear();
         for (uint32_t i = 0; i < v.objects.size(); i++) {
             const Object &o = v.objects[i];
             if (keep(keepContext, o, i)) {
                 kept.push_back(o);
+                keptIndex.push_back(static_cast<uint16_t>(i));
             }
         }
         BuildDrawList(kept, r, f.screen, f.items);
+        for (DrawItem &d : f.items) {
+            d.object = keptIndex[d.object];
+        }
     } else {
         BuildDrawList(v.objects, r, f.screen, f.items);
     }
@@ -257,6 +267,7 @@ void BuildFrame(const Video &v, const uint8_t *spriteRam, int margin, int shift,
                 f.tiles.push_back(t);
                 f.tilePriority.push_back(d.priority);
                 f.tileFrom.push_back(Frame::kFromObject);
+                f.tileObject.push_back(d.object);
             }
             continue;
         }
@@ -297,6 +308,7 @@ void BuildFrame(const Video &v, const uint8_t *spriteRam, int margin, int shift,
                 f.tiles.push_back(t);
                 f.tilePriority.push_back(d.priority);
                 f.tileFrom.push_back(d.tilemap & 3);
+                f.tileObject.push_back(d.object);
             }
         }
         if (!fillEnds) {
@@ -351,6 +363,7 @@ void BuildFrame(const Video &v, const uint8_t *spriteRam, int margin, int shift,
         f.tiles.insert(f.tiles.begin(), fill.begin(), fill.end());
         f.tilePriority.insert(f.tilePriority.begin(), fillPriority.begin(), fillPriority.end());
         f.tileFrom.insert(f.tileFrom.begin(), fillFrom.begin(), fillFrom.end());
+        f.tileObject.insert(f.tileObject.begin(), fill.size(), Frame::kNoObject);
     }
     // The text layer's settings
     f.textScrollY = (-static_cast<int>((r.text[0x11] << 8) | r.text[0x10])) & 0x100;
@@ -428,6 +441,7 @@ bool AddGuest(const Video &guest, const uint8_t *guestSpriteRam, Frame &f, KeepO
         t.producer = t.producer == 3 ? 2 : 1;
         f.tiles.push_back(t);
         f.tileFrom.push_back(i < g.tileFrom.size() ? g.tileFrom[i] : Frame::kFromObject);
+        f.tileObject.push_back(i < g.tileObject.size() ? g.tileObject[i] : Frame::kNoObject);
     }
     if (!bands) {
         oneBuffer();
@@ -807,6 +821,134 @@ void Rasteriser::Split(const Frame &f, const Video &v, const uint8_t *ss, const 
         Text(f, colours, ss, textLayer, width, height);
         for (uint32_t &pixel : textLayer) {
             pixel = pixel == kNone ? 0 : pixel | 0xFF000000u;
+        }
+    }
+}
+
+namespace {
+    // (a tile's texels at the buffer's cells, as Rasterise steps through them: put(cell, texel) for each not 0)
+    template <typename Put>
+    void EachTexel(const Tile &t, const uint8_t *textures, int bufferWidth, Put put) {
+        int yIndex = t.yIndex;
+        for (int y = t.sy; y < t.ey; y++, yIndex += t.dy) {
+            const uint8_t *row = textures + t.source + (yIndex >> 16) * 16;
+            const size_t line = static_cast<size_t>(y) * static_cast<size_t>(bufferWidth);
+            int xIndex = t.xBase;
+            for (int x = t.sx; x < t.ex; x++, xIndex += t.dx) {
+                const uint8_t c = row[xIndex >> 16];
+                if (c) {
+                    put(line + static_cast<size_t>(x), c);
+                }
+            }
+        }
+    }
+} // namespace
+
+void Rasteriser::Alone(const Frame &f, const Video &v, const std::vector<int> &groupOf, int group, std::vector<uint32_t> &out, int &left, int &top,
+                       int &right, int &bottom) {
+    const int width = f.width, height = f.height;
+    out.assign(static_cast<size_t>(width) * height, 0);
+    left = top = 1 << 20;
+    right = bottom = -1;
+    static thread_local std::vector<uint32_t> buffer;
+    buffer.resize(static_cast<size_t>(kBufferWidth) * kBufferHeight); // (all 0 between calls: only what was drawn is cleared after)
+    int p = -1, sx = kBufferWidth, sy = kBufferHeight, ex = 0, ey = 0;
+    for (size_t i = 0; i < f.tiles.size() && i < groupOf.size(); i++) {
+        if (groupOf[i] == group) {
+            p = f.tiles[i].producer & 3;
+            break;
+        }
+    }
+    for (size_t i = 0; i < f.tiles.size() && i < groupOf.size() && p >= 0; i++) {
+        const Tile &t = f.tiles[i];
+        // (another's tile: only its blend, where it falls on this group's pixels, as the layers have it)
+        const bool mine = groupOf[i] == group;
+        if (!mine && (t.mode == 0 || (t.producer & 3) != p)) {
+            continue;
+        }
+        const bool guest = p == 1 || p == 2;
+        const uint8_t *textures = guest && f.guestVideo ? f.guestVideo->textures.Pixels() : v.textures.Pixels();
+        const uint32_t base = static_cast<uint32_t>(t.base);
+        EachTexel(t, textures, kBufferWidth, [&](size_t k, uint8_t c) {
+            uint32_t &cell = buffer[k];
+            if (t.mode == 0) {
+                cell = c | base;
+            } else if (mine || cell) {
+                cell |= t.mode == 1 ? static_cast<uint32_t>(c & 0xF) << 13 : (static_cast<uint32_t>(c & 1) << 15) | base;
+            }
+        });
+        if (!mine) {
+            continue;
+        }
+        sx = std::min(sx, t.sx);
+        sy = std::min(sy, t.sy);
+        ex = std::max(ex, t.ex);
+        ey = std::max(ey, t.ey);
+    }
+    if (p < 0) {
+        return;
+    }
+    const bool guest = p == 1 || p == 2;
+    const Screen &screen = guest ? f.guestScreen : f.screen;
+    const uint16_t *colours = guest && f.guestVideo ? f.guestVideo->palette.Colours() : v.palette.Colours();
+    const uint32_t fx = (screen.zoomX << 16) / 0x40, fy = (screen.zoomY << 16) / 0x40;
+    for (int row = 0; row < height; row++) {
+        const uint32_t y = std::min<uint32_t>((static_cast<uint32_t>(row) * fy) >> 16, kBufferHeight - 1);
+        if (static_cast<int>(y) < sy || static_cast<int>(y) >= ey) {
+            continue;
+        }
+        for (int col = 0; col < width; col++) {
+            const uint32_t x = std::min<uint32_t>((static_cast<uint32_t>(col) * fx) >> 16, kBufferWidth - 1);
+            const uint32_t cell = buffer[static_cast<size_t>(y) * kBufferWidth + x];
+            if (!cell) {
+                continue;
+            }
+            out[static_cast<size_t>(row) * width + col] = Rgb(colours[cell & 0x1FFFF]) | 0xFF000000u;
+            left = std::min(left, col);
+            right = std::max(right, col);
+            top = std::min(top, row);
+            bottom = std::max(bottom, row);
+        }
+    }
+    for (int y = sy; y < ey; y++) {
+        std::fill_n(&buffer[static_cast<size_t>(y) * kBufferWidth + sx], ex - sx, 0u);
+    }
+}
+
+void Rasteriser::InFront(const Frame &f, const Video &v, const std::vector<int> &groupOf, std::vector<uint32_t> &out) {
+    const int width = f.width, height = f.height;
+    out.assign(static_cast<size_t>(width) * height, 0);
+    static thread_local std::vector<uint32_t> ids[4];
+    bool used[4] = {};
+    for (size_t i = 0; i < f.tiles.size() && i < groupOf.size(); i++) {
+        const Tile &t = f.tiles[i];
+        const int p = t.producer & 3, g = groupOf[i];
+        if (g < 0 || t.mode != 0) {
+            continue;
+        }
+        if (!used[p]) {
+            ids[p].assign(static_cast<size_t>(kBufferWidth) * kBufferHeight, 0);
+            used[p] = true;
+        }
+        const bool guest = p == 1 || p == 2;
+        const uint8_t *textures = guest && f.guestVideo ? f.guestVideo->textures.Pixels() : v.textures.Pixels();
+        uint32_t *to = ids[p].data();
+        EachTexel(t, textures, kBufferWidth, [&](size_t k, uint8_t) { to[k] = static_cast<uint32_t>(g) + 1; });
+    }
+    for (const int p : {1, 0, 2, 3}) {
+        if (!used[p]) {
+            continue;
+        }
+        const Screen &screen = p == 1 || p == 2 ? f.guestScreen : f.screen;
+        const uint32_t fx = (screen.zoomX << 16) / 0x40, fy = (screen.zoomY << 16) / 0x40;
+        for (int row = 0; row < height; row++) {
+            const size_t y = std::min<uint32_t>((static_cast<uint32_t>(row) * fy) >> 16, kBufferHeight - 1);
+            for (int col = 0; col < width; col++) {
+                const uint32_t id = ids[p][y * kBufferWidth + std::min<uint32_t>((static_cast<uint32_t>(col) * fx) >> 16, kBufferWidth - 1)];
+                if (id) {
+                    out[static_cast<size_t>(row) * width + col] = id;
+                }
+            }
         }
     }
 }

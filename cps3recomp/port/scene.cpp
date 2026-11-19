@@ -6,6 +6,7 @@
 #include "../runtime/game.h"
 #include "../runtime/system.h"
 #include "../video/raster.h"
+#include "hud.h"
 #include "image_files.h"
 #include "port.h"
 
@@ -54,7 +55,7 @@ namespace {
     }
 
     std::string BoxesJson(const SceneExport::Scene &scene) {
-        static const char *const kKinds[] = {"", "hurt", "attack", "push", "throw", "throw-range", "body", "shot", "ship"};
+        static const char *const kKinds[] = {"", "hurt", "attack", "push", "throw", "throwable"};
         std::string json;
         for (const SceneExport::Scene::Box &box : scene.boxes) {
             json += std::string(json.empty() ? "" : ", ") + "{\"player\": " + (box.player < 0 ? "null" : std::to_string(box.player + 1)) +
@@ -214,10 +215,308 @@ namespace {
         scene.layers.push_back(std::move(layer));
         scene.whole = true;
     }
+
+    // What a tile of the frame is (Game::scenePart: ScenePart), by the object it came from (Frame::tileObject; a guest
+    // stage's tile by its board's objects); a filled end the stage's
+    int PartOfTile(const native::Frame &f, const native::Video &v, size_t i) {
+        const uint16_t object = i < f.tileObject.size() ? f.tileObject[i] : native::Frame::kNoObject;
+        if (object == native::Frame::kNoObject) {
+            return cps3recomp::kPartStage;
+        }
+        const int producer = f.tiles[i].producer & 3;
+        const bool guest = producer == 1 || producer == 2;
+        const native::Video &board = guest && f.guestVideo ? *f.guestVideo : v;
+        if (object >= board.objects.size()) {
+            return cps3recomp::kPartOther;
+        }
+        return cps3recomp::TheGame().scenePart(board.objects[object].words, guest);
+    }
+
+    // A fight's picture by what is in it (cps2recomp's parts, issue #367): the stage behind the fighters, the rest
+    // (their shadows, sparks, projectiles, the round's banners), each player, the stage's pieces in front of the
+    // fighters, the panel (the text layer: the life bars, the timer, the meters), back to front, the player whose
+    // objects are drawn later in front. Each is the frame drawn again with only its tiles (Rasteriser::Split, each
+    // producer's part a layer of its own, laid over each other in the picture's order), so that a part is whole where
+    // another covers it; a shadow is in the part it falls on, as the picture has it. The stage's tiles are behind the
+    // fighters or in front by their place in the board's list against the fighters' last (a guest stage's: by its
+    // buffer, Frame::bands). `tileParts`: the part each tile is in, by its place in `out`
+    enum PartIndex { kStageBehind, kOther, kPlayerBack, kPlayerFront, kStageFront, kPanel, kParts };
+    void Parts(const native::Frame &f, const native::Video &v, const uint8_t *ss, const native::Rasteriser &shown, const std::vector<uint32_t> &text,
+               std::vector<SceneExport::Layer> &out, std::vector<int> &tileParts, std::vector<int> &tileKinds) {
+        const size_t count = f.tiles.size();
+        tileKinds.assign(count, cps3recomp::kPartOther);
+        int lastPlayer[2] = {-1, -1}, lastFighter = -1;
+        for (size_t i = 0; i < count; i++) {
+            tileKinds[i] = PartOfTile(f, v, i);
+            const int player = tileKinds[i] == cps3recomp::kPartPlayer1 ? 0 : tileKinds[i] == cps3recomp::kPartPlayer2 ? 1 : -1;
+            if (player >= 0) {
+                lastPlayer[player] = static_cast<int>(i);
+                lastFighter = static_cast<int>(i);
+            }
+        }
+        const int front = lastPlayer[1] > lastPlayer[0] ? 1 : 0;
+        tileParts.assign(count, kOther);
+        for (size_t i = 0; i < count; i++) {
+            const int producer = f.tiles[i].producer & 3;
+            switch (tileKinds[i]) {
+            case cps3recomp::kPartPlayer1: tileParts[i] = front == 0 ? kPlayerFront : kPlayerBack; break;
+            case cps3recomp::kPartPlayer2: tileParts[i] = front == 1 ? kPlayerFront : kPlayerBack; break;
+            case cps3recomp::kPartPanel: tileParts[i] = kPanel; break;
+            case cps3recomp::kPartStage:
+                if (producer == 1 || producer == 2) {
+                    tileParts[i] = producer == 2 ? kStageFront : kStageBehind;
+                } else {
+                    tileParts[i] = lastFighter >= 0 && static_cast<int>(i) > lastFighter ? kStageFront : kStageBehind;
+                }
+                break;
+            default: tileParts[i] = kOther; break;
+            }
+        }
+        std::vector<int> layerOf(count);
+        for (size_t i = 0; i < count; i++) {
+            layerOf[i] = tileParts[i] * 4 + (f.tiles[i].producer & 3);
+        }
+        native::Rasteriser raster;
+        raster.text = false;
+        raster.backdrop = shown.backdrop;
+        std::vector<std::vector<uint32_t>> images;
+        std::vector<uint32_t> none;
+        uint32_t backdrop = 0;
+        raster.Split(f, v, ss, layerOf, kParts * 4, images, none, backdrop);
+        static const char *const kNames[kParts] = {"stage-behind", "other", "player", "player", "stage-front", "panel"};
+        const size_t size = static_cast<size_t>(f.width) * f.height;
+        for (int p = 0; p < kParts; p++) {
+            SceneExport::Layer one;
+            one.name = std::string("part-") + kNames[p];
+            if (p == kPlayerBack || p == kPlayerFront) {
+                one.name += (p == kPlayerFront) == (front == 0) ? "1" : "2";
+            }
+            one.board = "part";
+            one.pixels.assign(size, 0);
+            for (const int producer : {1, 0, 2, 3}) {
+                const std::vector<uint32_t> &image = images[static_cast<size_t>(p * 4 + producer)];
+                for (size_t n = 0; n < image.size() && n < size; n++) {
+                    if (image[n] >> 24) {
+                        one.pixels[n] = image[n];
+                    }
+                }
+            }
+            if (p == kPanel) {
+                for (size_t n = 0; n < text.size() && n < size; n++) {
+                    if (text[n] >> 24) {
+                        one.pixels[n] = text[n];
+                    }
+                }
+            }
+            one.empty = std::none_of(one.pixels.begin(), one.pixels.end(), [](uint32_t pixel) { return pixel >> 24; });
+            out.push_back(std::move(one));
+        }
+    }
+
+    // Each object of the frame by itself (cps2recomp's entries, issue #397), front to back (the producers in the
+    // picture's order, a board's later objects over its earlier), each with its layer and its part. `pictures` (a
+    // still's): each drawn by itself (Rasteriser::Alone), whole where another covers it, its box all of it; else (a
+    // clip's frame) its box what of it is in front. `map`: 1 + the object in front at each pixel's place in `out`
+    void Entries(const native::Frame &f, const native::Video &v, const std::vector<int> &layerOf, const std::vector<SceneExport::Layer> &layers,
+                 const std::vector<SceneExport::Layer> &parts, const std::vector<int> &tileParts, const std::vector<int> &tileKinds, bool pictures,
+                 std::vector<SceneExport::Scene::Entry> &out, std::vector<uint32_t> &map) {
+        const size_t count = f.tiles.size();
+        // (each object's tiles: by board and the head of the board's list its objects came from, Object::group: a CPS-3
+        // object is a tile or a few, a fighter's picture a head's list of them)
+        struct Object {
+            int producer = 0, last = 0;
+            size_t first = 0;
+            uint16_t object = 0;
+        };
+        std::vector<Object> objects;
+        std::vector<int> slot[2] = {std::vector<int>(65536, -1), std::vector<int>(65536, -1)};
+        std::vector<int> groupOf(count, -1);
+        for (size_t i = 0; i < count; i++) {
+            if (f.tileFrom[i] != native::Frame::kFromObject || f.tileObject[i] == native::Frame::kNoObject) {
+                continue;
+            }
+            const int producer = f.tiles[i].producer & 3, board = producer == 1 || producer == 2;
+            const native::Video &from = board && f.guestVideo ? *f.guestVideo : v;
+            if (f.tileObject[i] >= from.objects.size()) {
+                continue;
+            }
+            int &at = slot[board][from.objects[f.tileObject[i]].group];
+            if (at < 0) {
+                at = static_cast<int>(objects.size());
+                objects.push_back({producer, static_cast<int>(i), i, f.tileObject[i]});
+            }
+            objects[static_cast<size_t>(at)].last = static_cast<int>(i);
+            groupOf[i] = at;
+        }
+        if (objects.empty()) {
+            return;
+        }
+        // (front to back: the frontmost producer's first, Rasteriser::Split's order backwards; in each, the later first)
+        static constexpr int kRank[4] = {1, 0, 2, 3}; // (by producer: its place in the picture's order)
+        std::vector<size_t> order(objects.size());
+        for (size_t n = 0; n < order.size(); n++) {
+            order[n] = n;
+        }
+        std::stable_sort(order.begin(), order.end(), [&](size_t a, size_t b) {
+            const Object &x = objects[a], &y = objects[b];
+            return kRank[x.producer] != kRank[y.producer] ? kRank[x.producer] > kRank[y.producer] : x.last > y.last;
+        });
+        std::vector<int> place(objects.size());
+        for (size_t n = 0; n < order.size(); n++) {
+            place[order[n]] = static_cast<int>(n);
+        }
+        for (int &g : groupOf) {
+            g = g < 0 ? -1 : place[static_cast<size_t>(g)];
+        }
+        native::Rasteriser raster;
+        std::vector<uint32_t> front;
+        raster.InFront(f, v, groupOf, front);
+        const int width = f.width, height = f.height;
+        struct Box {
+            int left = 1 << 20, top = 1 << 20, right = -1, bottom = -1;
+        };
+        std::vector<Box> boxes(objects.size());
+        if (!pictures) {
+            for (int y = 0; y < height; y++) {
+                for (int x = 0; x < width; x++) {
+                    const uint32_t id = front[static_cast<size_t>(y) * width + x];
+                    if (id) {
+                        Box &b = boxes[id - 1];
+                        b.left = std::min(b.left, x), b.right = std::max(b.right, x);
+                        b.top = std::min(b.top, y), b.bottom = std::max(b.bottom, y);
+                    }
+                }
+            }
+        }
+        static const char *const kWhat[] = {"other", "stage", "player1", "player2", "panel"};
+        std::vector<int> outOf(objects.size(), -1); // (each's place in `out`: none, nothing of it in the picture)
+        std::vector<uint32_t> alone;
+        for (size_t n = 0; n < order.size(); n++) {
+            const Object &o = objects[order[n]];
+            Box &box = boxes[n];
+            if (pictures) {
+                raster.Alone(f, v, groupOf, static_cast<int>(n), alone, box.left, box.top, box.right, box.bottom);
+            }
+            if (box.right < box.left) {
+                continue;
+            }
+            const bool guest = o.producer == 1 || o.producer == 2;
+            const native::Video &board = guest && f.guestVideo ? *f.guestVideo : v;
+            const uint32_t v1 = o.object < board.objects.size() ? board.objects[o.object].words[0] : 0;
+            const uint8_t priority = o.object < board.objects.size() ? board.objects[o.object].priority : native::kNoPriority;
+            SceneExport::Scene::Entry one;
+            one.board = guest ? "stage" : "game";
+            one.entry = o.object < board.objects.size() ? board.objects[o.object].group : 0; // (its head's place in the list)
+            one.tile = v1 >> 17;
+            one.colour = static_cast<int>(v1 & 0x1FF);
+            one.level = priority == native::kNoPriority ? 0 : priority;
+            one.attributes = static_cast<uint16_t>(v1 & 0xFFFF);
+            one.x = box.left;
+            one.y = box.top;
+            one.w = box.right - box.left + 1;
+            one.h = box.bottom - box.top + 1;
+            const int layer = layerOf[o.first];
+            one.layer = layer >= 0 && static_cast<size_t>(layer) < layers.size() ? layers[static_cast<size_t>(layer)].name : "";
+            if (!parts.empty() && o.first < tileParts.size()) {
+                one.part = parts[static_cast<size_t>(tileParts[o.first])].name;
+                const int kind = tileKinds[o.first];
+                one.what = kind >= 0 && kind < static_cast<int>(std::size(kWhat)) ? kWhat[kind] : "";
+            }
+            if (pictures) {
+                one.pixels.assign(static_cast<size_t>(one.w) * one.h, 0);
+                for (int y = 0; y < one.h; y++) {
+                    std::copy_n(&alone[static_cast<size_t>(one.y + y) * width + one.x], one.w, &one.pixels[static_cast<size_t>(y) * one.w]);
+                }
+            }
+            outOf[n] = static_cast<int>(out.size());
+            out.push_back(std::move(one));
+        }
+        map.assign(front.size(), 0);
+        for (size_t n = 0; n < front.size(); n++) {
+            if (front[n] && outOf[front[n] - 1] >= 0) {
+                map[n] = static_cast<uint32_t>(outOf[front[n] - 1] + 1);
+            }
+        }
+    }
+
+    // What the port draws over the picture (cps2recomp's overlays, issue #398), the parts of it asked for (port/hud.h),
+    // by itself, as Port::Shown draws it. DrawHud blends, so it is drawn over black and over white: how much the white
+    // comes through is how much the pixel lets through, and over black is its colour times how solid it is.
+    void Overlay(int width, int height, unsigned parts, const char *name, std::vector<SceneExport::Layer> &out) {
+        const size_t size = static_cast<size_t>(width) * height;
+        std::vector<uint32_t> over[2] = {std::vector<uint32_t>(size, 0xFF000000u), std::vector<uint32_t>(size, 0xFFFFFFFFu)};
+        for (std::vector<uint32_t> &pixels : over) {
+            DrawHud(pixels.data(), width, height, nullptr, parts);
+        }
+        SceneExport::Layer one;
+        one.name = name;
+        one.board = "overlay";
+        one.pixels.assign(size, 0);
+        for (size_t n = 0; n < size; n++) {
+            const uint32_t black = over[0][n], white = over[1][n];
+            int through = 0;
+            for (int shift = 0; shift < 24; shift += 8) {
+                through = std::max(through, static_cast<int>((white >> shift) & 0xFF) - static_cast<int>((black >> shift) & 0xFF));
+            }
+            const int solid = 255 - std::clamp(through, 0, 255);
+            if (solid == 0) {
+                continue;
+            }
+            uint32_t pixel = static_cast<uint32_t>(solid) << 24;
+            for (int shift = 0; shift < 24; shift += 8) {
+                const int colour = (static_cast<int>((black >> shift) & 0xFF) * 255 + solid / 2) / solid;
+                pixel |= static_cast<uint32_t>(std::min(colour, 255)) << shift;
+            }
+            one.pixels[n] = pixel;
+            one.empty = false;
+        }
+        out.push_back(std::move(one));
+    }
+
+    // The overlays and the hit boxes' list (issue #398). A box whose player the game's sources do not know (something
+    // thrown) goes with the player whose picture it covers more of (the parts', when there are any).
+    void Overlays(SceneExport::Scene &scene) {
+        const std::vector<cps3recomp::HudBox> &boxes = cps3recomp::Boxes();
+        if (boxes.empty() && cps3recomp::Hud().empty()) {
+            return;
+        }
+        Overlay(scene.width, scene.height, kHudHitBoxes, "overlay-boxes", scene.overlays);
+        Overlay(scene.width, scene.height, kHudText | kHudDrawnBoxes, "overlay-hud", scene.overlays);
+        const SceneExport::Layer *player[2] = {};
+        for (const SceneExport::Layer &part : scene.parts) {
+            if (part.name == "part-player1" || part.name == "part-player2") {
+                player[part.name.back() - '1'] = &part;
+            }
+        }
+        for (const cps3recomp::HudBox &box : boxes) {
+            if (box.kind == cps3recomp::kHudDrawn || box.width <= 0 || box.height <= 0 || box.x >= scene.width || box.y >= scene.height ||
+                box.x + box.width <= 0 || box.y + box.height <= 0) {
+                continue;
+            }
+            SceneExport::Scene::Box one;
+            one.player = box.player;
+            one.kind = box.kind;
+            one.thrown = box.thrown;
+            one.x = box.x, one.y = box.y, one.width = box.width, one.height = box.height;
+            one.colour = box.r | (box.g << 8) | (box.b << 16);
+            one.fill = box.fill;
+            if (one.player < 0 && player[0] && player[1]) {
+                int covered[2] = {};
+                for (int y = std::max(box.y, 0); y < std::min(box.y + box.height, scene.height); y++) {
+                    for (int x = std::max(box.x, 0); x < std::min(box.x + box.width, scene.width); x++) {
+                        for (int p = 0; p < 2; p++) {
+                            covered[p] += player[p]->pixels[static_cast<size_t>(y) * scene.width + x] != 0;
+                        }
+                    }
+                }
+                one.player = covered[0] == covered[1] ? -1 : covered[1] > covered[0] ? 1 : 0;
+            }
+            scene.boxes.push_back(one);
+        }
+    }
 } // namespace
 
 bool SceneExport::Take(Machine &machine, Scene &scene, int entries) {
-    (void)entries; // (each object by itself: not yet)
     const int width = machine.PictureWidth(), height = Video::kHeight;
     if (width <= 0) {
         return false;
@@ -242,6 +541,7 @@ bool SceneExport::Take(Machine &machine, Scene &scene, int entries) {
     if (!machine.ShownFrame(parts) || parts.frame->width != width || parts.frame->height != height ||
         parts.frame->tileFrom.size() != parts.frame->tiles.size()) {
         Whole(scene); // (not drawn as one frame: kept whole)
+        Overlays(scene);
         return true;
     }
     const native::Frame &f = *parts.frame;
@@ -325,7 +625,21 @@ bool SceneExport::Take(Machine &machine, Scene &scene, int entries) {
                 static_cast<unsigned long long>(scene.frame), different, first % static_cast<size_t>(width), first / static_cast<size_t>(width),
                 made[first] & 0xFFFFFFu, scene.picture[first] & 0xFFFFFFu);
         Whole(scene);
+        Overlays(scene);
+        return true;
     }
+    // A fight's parts, and each object by itself
+    const cps3recomp::Game &game = cps3recomp::TheGame();
+    std::vector<int> tileParts, tileKinds;
+    if (game.scenePart && game.fighting && game.fighting()) {
+        const std::vector<uint32_t> none;
+        const bool hasText = !scene.layers.empty() && scene.layers.back().name == "text";
+        Parts(f, *parts.video, parts.ss, *parts.raster, hasText ? scene.layers.back().pixels : none, scene.parts, tileParts, tileKinds);
+    }
+    if (entries != kNoEntries) {
+        Entries(f, *parts.video, layerOf, scene.layers, scene.parts, tileParts, tileKinds, entries == kEntryPictures, scene.entries, scene.entryMap);
+    }
+    Overlays(scene);
     return true;
 }
 

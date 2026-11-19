@@ -17,6 +17,9 @@
 // picture the layers do not make again (or one made of more than one picture: a stage fading or sliding in, the ring
 // out's way down) is saved whole, as the one layer "whole".
 //
+// In a round, the picture by what is in it too (the stage behind the fighters, each player, the stage in front, the panel,
+// the rest), each object by itself, and in training what the port draws over it (cps2recomp's parts, entries, overlays).
+//
 // A clip is the same for each frame of a few seconds, in a folder per layer, written by threads beside the game.
 #pragma once
 
@@ -73,8 +76,9 @@ public:
         uint32_t backdrop = 0;
         std::vector<uint32_t> picture; // (as shown, solid)
         std::vector<Layer> layers;     // (back to front)
-        // (cps2recomp's parts by what is in the picture, each object entry by itself, and what the port draws over the
-        // picture: the files and scene.json have room for them; not taken yet)
+        // (a fight's parts by what is in the picture, Game::scenePart: part-stage-behind, part-other, the players,
+        // part-stage-front, part-panel; each object by itself, a head of the board's list; and what the port draws over
+        // the picture, its hit boxes and its readout, the boxes listed with their players: cps2recomp's, the same files)
         std::vector<Layer> parts;
         struct Entry {
             std::string board;

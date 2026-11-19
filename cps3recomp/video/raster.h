@@ -30,6 +30,7 @@ struct DrawItem {
     int16_t line = 0;
     uint16_t group = 0; // (the main list's head it came from)
     uint8_t priority = kNoPriority; // (its head's priority: Object::priority)
+    uint16_t object = 0; // (the object it came from: its place in the objects it was made from)
 };
 
 // The picture's size and zoom as the frame's registers set them
@@ -86,6 +87,10 @@ struct Frame {
     // Not the GPU's: for the scene export's layers (Rasteriser::Split)
     static constexpr uint8_t kFromObject = 4, kFromFill = 0x10;
     std::vector<uint8_t> tileFrom;
+    // ... and which object, as `tiles`: its place in its board's objects (Video::objects; the guest's, for a guest's
+    // tile), a tilemap's line's the object that put it there; kNoObject: none (a filled end). For the scene export too
+    static constexpr uint16_t kNoObject = 0xFFFF;
+    std::vector<uint16_t> tileObject;
 };
 // Which of a frame's objects are drawn (none: all): a rule on each object, with its context. For a frame made of two
 // producers' layers (a guest stage's under the game's: docs/NATIVE.md), each producer's part.
@@ -158,6 +163,16 @@ public:
     // where the layer has one (0: none); `text` the text layer's, the same.
     void Split(const Frame &f, const Video &v, const uint8_t *ssRam, const std::vector<int> &layerOf, int layers,
                std::vector<std::vector<uint32_t>> &out, std::vector<uint32_t> &textLayer, uint32_t &backdropColour);
+    // The tiles whose `groupOf` is `group` drawn by themselves (all of one producer's), as if nothing else were drawn
+    // but the blends of their producer's other tiles where they fall on them (a shadow on what it falls on, as Split's):
+    // the picture's pixels where they drew one (0xFF in the top byte; 0 elsewhere), through their producer's palette and
+    // zoom, and the box they are in (right < left: nothing). For the scene export's objects each by itself
+    void Alone(const Frame &f, const Video &v, const std::vector<int> &groupOf, int group, std::vector<uint32_t> &out, int &left, int &top, int &right,
+               int &bottom);
+    // Which group's tile (`groupOf`, -1 for none of them: not drawn) is in front at each of the picture's pixels, of
+    // those groups' tiles alone drawn as the picture draws them (a later tile over an earlier, the producers in
+    // Rasteriser::Split's order): 1 + the group, 0 where none drew a pixel (a blend's pixel is not one)
+    void InFront(const Frame &f, const Video &v, const std::vector<int> &groupOf, std::vector<uint32_t> &out);
 
 private:
     static constexpr int kBufferWidth = 1024, kBufferHeight = 448;
