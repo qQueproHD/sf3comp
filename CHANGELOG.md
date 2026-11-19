@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Scene export with run-ahead**: with Run-ahead on, a saved scene and a clip were kept whole (one layer, the
+  picture) in a fight: the layers were drawn from the frame the game goes back to, not the frame shown. They are now
+  taken of the frame shown, and come apart as without it. A fight's parts also put in front the player the picture
+  has in front where the two are over each other (a throw's, say), not the one whose sprites the board drew last.
 - **Tag team battle online** (3rd Strike): in a match, Esc opens the in-game menu over the running game (it goes on for
   both players; your fighter stands still while it is open). Its **Online match** page has the host's **Start Tag team
   battle** and **Back to Versus**, and each player's own team: the fighters and their **super arts**. Both teams are

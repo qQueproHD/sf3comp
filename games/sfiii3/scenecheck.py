@@ -114,21 +114,36 @@ def check_entries(folder, doc, width, height):
 
 def check_parts(folder, width, height, backdrop, parts, number, picture):
     """(how many pixels the parts make differently, the first; what is wrong with their files): laid over each other in
-    their order, and with part-other over the players instead (a spark, a projectile in front of a fighter: the parts'
-    order is fixed, the picture's is not); a pixel either makes as the picture has it is the same"""
+    their order, with part-other over the players instead (a spark, a projectile in front of a fighter) and with the
+    players the other way round (drawn among each other's): the parts' order is fixed, the picture's is not; a pixel
+    any of them makes as the picture has it is the same"""
     def files(names):
         return [os.path.join(folder, n, number) if number else os.path.join(folder, n + '.png') for n in names]
     made, why = compose(width, height, backdrop, files(parts))
     if made is None:
         return None, None, why
+    # (and the ways the fixed order can differ from the picture's: part-other over the players, a spark in front of a
+    # fighter; the two players the other way round, drawn among each other's, a throw's)
+    orders = []
     later = [n for n in parts if n != 'part-other']
     if 'part-other' in parts:
         at = max([i for i, n in enumerate(later) if n.startswith('part-player')], default=len(later) - 1) + 1
         later.insert(at, 'part-other')
-    again, why = compose(width, height, backdrop, files(later))
-    if again is None:
-        return None, None, why
-    different = [i // 4 for i in range(0, len(made), 4) if made[i:i + 3] != picture[i:i + 3] and again[i:i + 3] != picture[i:i + 3]]
+        orders.append(later)
+    for order in list(orders) + [parts]:
+        if 'part-player1' in order and 'part-player2' in order:
+            swapped = list(order)
+            a, b = swapped.index('part-player1'), swapped.index('part-player2')
+            swapped[a], swapped[b] = swapped[b], swapped[a]
+            orders.append(swapped)
+    others = []
+    for order in orders:
+        again, why = compose(width, height, backdrop, files(order))
+        if again is None:
+            return None, None, why
+        others.append(again)
+    different = [i // 4 for i in range(0, len(made), 4)
+                 if made[i:i + 3] != picture[i:i + 3] and all(o[i:i + 3] != picture[i:i + 3] for o in others)]
     return len(different), (different[0] % width, different[0] // width) if different else None, None
 
 

@@ -421,8 +421,16 @@ struct Port {
     void Again(const std::string &why);
     std::string rejoin;
     uint64_t againAt = 0; // (joining: the tick to try again at)
-    void RunAhead();
+    // `shown`: called at the last frame run ahead, the one shown, before the machine is put back (the scene export's:
+    // the picture and what it was drawn from are that frame's there)
+    void RunAhead(void (*shown)(Port &port) = nullptr);
     bool RunsAhead() const; // (whether RunAhead runs frames ahead now)
+    // How many frames the last frame ran ahead (0: none), and the controls it ran them with: so that a scene saved
+    // between frames (from the menu, paused) is taken of the frame shown, the same frames run again (RunAheadAgain)
+    int ranAhead = 0;
+    uint16_t ranAheadWith[cps3recomp::Machine::kMaxPlayers] = {};
+    void RunAheadAgain(void (*shown)(Port &port));
+    void RunFramesAhead(int ahead, const uint16_t *held, void (*shown)(Port &port));
     void Finish();
     uint32_t StateHash() const;
     bool SaveState(const std::string &path, std::string &error);
