@@ -2723,6 +2723,20 @@ bool StageBehindEnds(int &left, int &right) {
     right = g_theirRight;
     return g.fought && g.offsetKnown && right > left;
 }
+// What an object of the frame is, for the scene export's parts (Game::scenePart): a fighter's (FighterWords) is player
+// 1's with a palette below 0x10 (colours 0x000-0x3FF: colours.cpp, where the palette DMA puts player 1's palettes) and
+// player 2's from 0x10 (0x400-0x7FF); the stage's (OwnStageWords: its tilemaps, its palettes 0x80-0xFF and 0x1FF), and
+// all of a guest stage's (those drawn are its stage, StageWords); the rest (shadows, sparks, projectiles, the round's
+// banners) something else. The panel (the life bars, the timer, the meters) is the text layer, not objects
+int ScenePartOf(const uint32_t *words, bool guest) {
+    if (guest) {
+        return kPartStage;
+    }
+    if (FighterWords(words[0], words[2])) {
+        return (words[0] & 0x1FF) < 0x10 ? kPartPlayer1 : kPartPlayer2;
+    }
+    return OwnStageWords(words[0], words[2]) ? kPartStage : kPartOther;
+}
 bool StageBehindShown() {
     return g.loaded && g.fought && g.offsetKnown && g.inFight > kBannersFor;
 }

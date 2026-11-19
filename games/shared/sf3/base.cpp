@@ -147,30 +147,30 @@ void RegisterGame() {
     game.features.push_back({"infinite_time", "Cheats", "Infinite time", "The round's clock stands still."});
 
     game.features.push_back({"board_difficulty", "Board", "Difficulty", "How hard the computer plays (the board's 1 to 8). Takes effect when the game is reset.",
-                             0, {"As the board has it", "1 (easiest)", "2", "3", "4", "5", "6", "7", "8 (hardest)"}});
+                             0, {"As the board is set", "1 (easiest)", "2", "3", "4", "5", "6", "7", "8 (hardest)"}});
     game.features.push_back({"board_damage", "Board", "Damage level", "How much a hit takes (the board's 1 to 4). Takes effect when the game is reset.",
-                             0, {"As the board has it", "1 (least)", "2", "3", "4 (most)"}});
+                             0, {"As the board is set", "1 (least)", "2", "3", "4 (most)"}});
     game.features.push_back({"board_timer", "Board", "Timer speed", "How fast the round's clock runs (the board's 1 to 4). Takes effect when the game is reset.",
-                             0, {"As the board has it", "1 (slowest)", "2", "3", "4 (fastest)"}});
+                             0, {"As the board is set", "1 (slowest)", "2", "3", "4 (fastest)"}});
     if (f.roundsBetweenTwo) {
         game.features.push_back({"board_rounds_cpu", "Board", "Rounds against the computer", "Rounds to win a match against the computer. Takes effect when the game is reset.",
-                                 0, {"As the board has it", "1", "2 (best of 3)", "3 (best of 5)"}});
+                                 0, {"As the board is set", "1", "2 (best of 3)", "3 (best of 5)"}});
         game.features.push_back({"board_rounds_vs", "Board", "Rounds between two players", "Rounds to win a match between two players. Takes effect when the game is reset.",
-                                 0, {"As the board has it", "1", "2 (best of 3)", "3 (best of 5)"}});
+                                 0, {"As the board is set", "1", "2 (best of 3)", "3 (best of 5)"}});
     } else {
         game.features.push_back({"board_rounds", "Board", "Rounds", "Rounds to win a match. Takes effect when the game is reset.",
-                                 0, {"As the board has it", "1", "2 (best of 3)", "3 (best of 5)"}});
+                                 0, {"As the board is set", "1", "2 (best of 3)", "3 (best of 5)"}});
     }
     game.features.push_back({"board_event", "Board", "Event", "Off, or one match only. Takes effect when the game is reset.",
-                             0, {"As the board has it", "Off", "One match"}});
+                             0, {"As the board is set", "Off", "One match"}});
     if (f.bonusGames) {
         game.features.push_back({"board_bonus", "Board", "Bonus games", "Whether the one-player game has its bonus stages. Takes effect when the game is reset.",
-                                 0, {"As the board has it", "On", "Off"}});
+                                 0, {"As the board is set", "On", "Off"}});
     }
     game.features.push_back({"board_continue", "Board", "Continue", "Whether a game over can be continued. Takes effect when the game is reset.",
-                             0, {"As the board has it", "Yes", "No"}});
+                             0, {"As the board is set", "Yes", "No"}});
     game.features.push_back({"board_demo_sound", "Board", "Demo sound", "Whether the attract mode plays sound. Takes effect when the game is reset.",
-                             0, {"As the board has it", "On", "Off"}});
+                             0, {"As the board is set", "On", "Off"}});
     game.boardSound = true; // (no sound driver of these games' own feeds the native mixer: it played nothing)
     game.beforeFrame = BeforeFrame;
     game.frame = TrainingAfterFrame;
@@ -178,6 +178,10 @@ void RegisterGame() {
     if (TheFacts().stage) {
         game.pages.push_back({"Stage", "", "Where the fights are: any of the game's stages.", true});
     }
+    // (the one way to play beyond the arcade game here: training, under Alternative modes as in the other games)
+    game.pages.push_back({"Alternative modes", "", "Ways to play beyond the arcade game: here, the training mode.", true});
+    game.pages.push_back({"Training mode", "Alternative modes", "A fight with no clock that nobody loses, and the aids for practising in it."});
+    game.pages.push_back({"Dummy", "Training mode", "What player 2 does in a training session."});
     RegisterWidescreen(game);
     RegisterTraining(game);
 }

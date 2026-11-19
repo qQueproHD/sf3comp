@@ -7,6 +7,38 @@
   battle** and **Back to Versus**, and each player's own team: the fighters and their **super arts**. Both teams are
   people, the stage one of 3rd Strike's; the rest of the Tag team battle page (style, fighters a team, stage) is the
   host's. The page's first fighter, second and third now have a **super art** row each offline too (I, II or III).
+- **Scene export: parts, objects, overlays** (cps2recomp's): in a round, a scene and a clip's frames are also split by
+  what is in them: the stage behind, each player, the stage in front, the panel and the rest; a saved scene has each
+  object by itself (`entries.png`, `entry-map.png`); in training, the hit boxes and the readout are overlays of their
+  own, the boxes listed with their player. The diorama shows them as cps2recomp's do.
+- **The in-game menu laid out as in the other recomp ports** (recomp-common's standard layout): Online, Display,
+  Game, Replays and Stage first; then Alternative modes. In New Generation, 2nd Impact, 3rd Strike 990608 and 4rd
+  Strike, Training mode (and Dummy under it) is now under Alternative modes, as in 3rd Strike. Some words as the
+  other ports have them: Scaling's **Whole pixels** (was Integer), the Board page's **As the board is set** (was As
+  the board has it), the endless battle's **Stages**. Settings already chosen stay as they are.
+- **The mouse in the in-game menu**: pointing at a row chooses it, a click does what Enter does, the right button goes
+  back a page and the wheel goes up and down. The keypad's Enter confirms too.
+- **Scene export** (cps2recomp's, every game): the Game page's **Scene export**. **Save scene** (Shift+F12) saves the
+  picture and each of its layers by itself as a see-through PNG (the board's tilemaps, the objects between them, the
+  text layer; New Generation's or 2nd Impact's stage's layers too, in a fight on one), with a `scene.json` of their
+  order, in `exports/scenes/` beside your saves; **Record clip** (Ctrl+F12) the same for each frame of 3, 5 or 10
+  seconds. Shadows are in the layer they fall on, so the layers put back together make the picture exactly. With SVG
+  pictures too, a scene's `scene.svg` has each layer as a layer of its own. The **scene diorama**
+  (`tools/diorama/diorama.html`, cps2recomp's) shows them as 3D cut-outs: open it from the launcher's Games page
+  (Tools) or as a file.
+- **SVG pictures** (cps2recomp's): the Game page's **SVG pictures too** writes an SVG beside each screenshot's PNG
+  (F12): each pixel a square, so it scales to any size exactly, in the Display page's shape. Drawn, it is its PNG
+  pixel for pixel.
+- **Instant replay** (cps2recomp's, every game): the Video page's **Save replay** (Alt+Shift+F12) saves the last 30
+  seconds just played as a video, with no recording started (**Replay length**: 30, 60 or 10 seconds, or off). The
+  game keeps a state every second and every frame's controls, and plays them again into the video beside the game,
+  in the time each frame has to spare, so the game goes on at its speed.
+- **Video recording** (cps2recomp's, every game): the in-game menu's **Game > Video** page. **Record video** (Alt+F12)
+  records what you play and hear as an MP4 (H.264 and AAC, which plays anywhere) in `videos/` beside your saves, until
+  you stop it: the picture as screenshots take it, larger (3 times the board's lines unless **Video size** says 2, 4
+  or 1080 lines) with each pixel a sharp block, in the Display page's shape; the board's sound and the custom
+  soundtrack's. Stopped or in the menu nothing is recorded; slowed or sped up it plays at the board's speed.
+  `--record-video FILE.mp4` records a whole run, and with `--movie` and `--headless` makes a movie into a video.
 - **Each game's files on its page**: every game's page in the launcher has a **This game's files** card with that
   game's folder (its settings, saves, save states and logs) and a **Show** button that opens it.
 - **Dreamcast arranged can only be chosen with the disc**: the launcher's Custom soundtrack dropdown and the in-game

@@ -12,6 +12,7 @@
 
 #include "../runtime/game.h"
 #include "../recomp-common/gamepads.h"
+#include "../recomp-common/menu_sdl.h"
 
 #include <SDL3/SDL.h>
 
@@ -603,10 +604,12 @@ int RunWindowed(Port &port) {
     // (the menu's picture's size where it is drawn on the screen's own pixels: Port::MenuPicture; 0: as usual)
     int menuWantWidth = 0, menuWantHeight = 0;
     bool menuDirty = false;
+    // (where the menu's picture is in the window, and its size, as last drawn: for the mouse, recomp-common/menu_sdl.h)
+    recomp::sdl::MenuPlace menuPlace;
     uint16_t previousPad = 0, heldAtClose = 0;
     recomp::MenuRepeat menuRepeat; // (the arrows held go on through the rows and the choices)
     int triggerHeld = 0;
-    bool bothHeld = false; // a gamepad's Start and Select (Back) together: the menu
+    recomp::sdl::MenuChord menuChord; // a gamepad's Start and Select (Back) together: the menu
     // (with a zoom to work, the left stick's click opens the menu when it is let go, unless a shoulder was pressed
     // while it was held: then it was the zoom's)
     bool stickWaiting = false;
@@ -688,7 +691,8 @@ int RunWindowed(Port &port) {
         }
         // (the checks, CPS3RECOMP_MENU_SCRIPT=FRAME:KEYS[;FRAME:KEYS...]: from that frame on, the in-game menu worked as a
         // player works it, a key a pass of this loop: m opens or closes it, u d l r up, down, left, right, a confirms, b
-        // goes back: games/sfiii3/checkwide.sh, widescreen switched in the menu)
+        // goes back, cXxY. clicks the mouse at that point of the window, wXxY. turns its wheel down there:
+        // games/sfiii3/checkwide.sh, widescreen switched in the menu)
         if (static const char *script = getenv("CPS3RECOMP_MENU_SCRIPT"); script && !port.net) {
             static std::string left = script;
             static size_t at = std::string::npos;
@@ -701,7 +705,34 @@ int RunWindowed(Port &port) {
                 if (at < end) {
                     static const std::string kKeys = "udlrab";
                     const char key = left[at++];
-                    if (key == 'm') {
+                    if (key == 'c' || key == 'w') {
+                        // (cXxY. : the mouse clicked at that point of the window; wXxY. : its wheel turned down there, both
+                        // as SDL's events, through the mouse's own way into the menu below)
+                        const size_t stop = std::min(left.find('.', at), end);
+                        int x = 0, y = 0;
+                        sscanf(left.substr(at, stop - at).c_str(), "%dx%d", &x, &y);
+                        at = std::min(stop + 1, end);
+                        SDL_Event made = {};
+                        made.motion.type = SDL_EVENT_MOUSE_MOTION;
+                        made.motion.windowID = SDL_GetWindowID(window);
+                        made.motion.x = static_cast<float>(x), made.motion.y = static_cast<float>(y);
+                        SDL_PushEvent(&made);
+                        made = {};
+                        if (key == 'c') {
+                            made.button.type = SDL_EVENT_MOUSE_BUTTON_DOWN;
+                            made.button.windowID = SDL_GetWindowID(window);
+                            made.button.button = SDL_BUTTON_LEFT;
+                            made.button.down = true;
+                            made.button.clicks = 1;
+                            made.button.x = static_cast<float>(x), made.button.y = static_cast<float>(y);
+                        } else {
+                            made.wheel.type = SDL_EVENT_MOUSE_WHEEL;
+                            made.wheel.windowID = SDL_GetWindowID(window);
+                            made.wheel.y = -1;
+                            made.wheel.mouse_x = static_cast<float>(x), made.wheel.mouse_y = static_cast<float>(y);
+                        }
+                        SDL_PushEvent(&made);
+                    } else if (key == 'm') {
                         toggleMenu();
                     } else if (port.menu.IsOpen() && kKeys.find(key) != std::string::npos) {
                         port.MenuAct(port.menu.Press(1u << kKeys.find(key)));
@@ -759,9 +790,8 @@ int RunWindowed(Port &port) {
                     } else {
                         port.zoom.Press(ev.key.scancode == SDL_SCANCODE_E ? 1 : 0);
                     }
-                } else if (ev.key.scancode == SDL_SCANCODE_ESCAPE || ev.key.scancode == SDL_SCANCODE_F1 || ev.key.scancode == SDL_SCANCODE_AC_BACK ||
-                           (ev.key.scancode == SDL_SCANCODE_TAB && !KeyBound(SDL_SCANCODE_TAB))) {
-                    // (AC_BACK: a phone's Back)
+                } else if (recomp::sdl::MenuKey(ev.key.scancode, !KeyBound(SDL_SCANCODE_TAB))) {
+                    // (Esc, F1, a phone's Back, Tab unless the game has it)
                     toggleMenu();
                 } else if (KeyBound(ev.key.scancode)) {
                     // (a key the player has given to the game does only that)
@@ -787,6 +817,14 @@ int RunWindowed(Port &port) {
                     port.Key('k', kKeyRestart);
                 } else if (!port.menu.IsOpen() && ev.key.scancode == SDL_SCANCODE_BACKSLASH && !ev.key.repeat) {
                     port.Key('k', kKeyExtra);
+                } else if (ev.key.scancode == SDL_SCANCODE_F12 && !ev.key.repeat && (ev.key.mod & SDL_KMOD_SHIFT) && !(ev.key.mod & SDL_KMOD_ALT)) {
+                    port.SaveScene(); // (the scene export: scene.h)
+                } else if (ev.key.scancode == SDL_SCANCODE_F12 && !ev.key.repeat && (ev.key.mod & SDL_KMOD_CTRL)) {
+                    port.SceneClip();
+                } else if (ev.key.scancode == SDL_SCANCODE_F12 && !ev.key.repeat && (ev.key.mod & SDL_KMOD_ALT) && (ev.key.mod & SDL_KMOD_SHIFT)) {
+                    port.SaveReplay(); // (the instant replay: the last seconds played)
+                } else if (ev.key.scancode == SDL_SCANCODE_F12 && !ev.key.repeat && (ev.key.mod & SDL_KMOD_ALT)) {
+                    port.RecordVideo(); // (the video recording: video_record.h)
                 } else if (ev.key.scancode == SDL_SCANCODE_F12 && !ev.key.repeat) {
                     port.Screenshot();
                 } else if (ev.key.scancode == SDL_SCANCODE_F2) {
@@ -812,8 +850,8 @@ int RunWindowed(Port &port) {
                     // (a button the player has given to the game does only that)
                 } else if (ev.gbutton.button == SDL_GAMEPAD_BUTTON_LEFT_STICK && Zoom::Possible() && !port.menu.IsOpen()) {
                     stickWaiting = true;
-                } else if (ev.gbutton.button == SDL_GAMEPAD_BUTTON_LEFT_STICK || ev.gbutton.button == SDL_GAMEPAD_BUTTON_GUIDE) {
-                    toggleMenu();
+                } else if (recomp::sdl::MenuButton(static_cast<SDL_GamepadButton>(ev.gbutton.button))) {
+                    toggleMenu(); // (Guide, or the left stick's click)
                 } else if (port.menu.IsOpen()) {
                     break;
                 } else if (ev.gbutton.button == SDL_GAMEPAD_BUTTON_RIGHT_STICK) {
@@ -834,6 +872,21 @@ int RunWindowed(Port &port) {
                     }
                 }
                 break;
+            case SDL_EVENT_MOUSE_MOTION:
+            case SDL_EVENT_MOUSE_BUTTON_DOWN:
+            case SDL_EVENT_MOUSE_WHEEL: {
+                // (the mouse in the menu: over a row chooses it, a click confirms, the right button goes back, the wheel
+                // goes up and down; a touch made into a mouse event is the touch controls', touch.cpp)
+                recomp::Menu::Chosen chosen;
+                if (port.menu.IsOpen() && !port.net && recomp::sdl::MouseEvent(ev, window, menuPlace, port.menu.Shared(), chosen)) {
+                    port.MenuAct(port.menu.Take(chosen));
+                    menuDirty = true;
+                    if (!port.menu.IsOpen()) {
+                        heldAtClose = previousPad;
+                    }
+                }
+                break;
+            }
             case SDL_EVENT_GAMEPAD_ADDED:
                 if (SDL_Gamepad *gp = SDL_OpenGamepad(ev.gdevice.which)) {
                     gamepads.push_back(gp);
@@ -916,7 +969,7 @@ int RunWindowed(Port &port) {
                 port.zoom.Pan(std::clamp(across, -1, 1), std::clamp(down, -1, 1));
             }
             pads[0] |= touch.Read(port.menu.IsOpen());
-            bool trigger = false, both = false;
+            bool trigger = false;
             const bool stepOnTrigger = !PadInputBound(g_bindings, Table(), {-1, SDL_GAMEPAD_AXIS_LEFT_TRIGGER});
             for (size_t i = 0; i < gamepads.size() && static_cast<int>(i) < Players(); i++) {
                 pads[i] |= ReadGamepad(gamepads[i], static_cast<int>(i));
@@ -927,8 +980,6 @@ int RunWindowed(Port &port) {
                 if (left && !port.paused && !multi) {
                     pads[i] |= kTag;
                 }
-                both = both || (SDL_GetGamepadButton(gamepads[i], SDL_GAMEPAD_BUTTON_START) &&
-                                SDL_GetGamepadButton(gamepads[i], SDL_GAMEPAD_BUTTON_BACK));
             }
             // The left trigger goes on by one frame (held: frame after frame, after a moment), once the game
             // has been stopped: it does not stop it, so a touch of it while playing does nothing
@@ -945,29 +996,20 @@ int RunWindowed(Port &port) {
             previousPad = all;
             // Start and Select held together open and close the menu, whatever they are bound to (the second
             // of them to go down is not also a press in the menu; neither reaches the game until let go)
-            if (both && !bothHeld) {
+            if (menuChord.Step(gamepads.data(), static_cast<int>(gamepads.size()))) {
                 toggleMenu();
                 pressed = 0;
                 heldAtClose = previousPad;
             }
-            bothHeld = both;
+            const bool both = menuChord.held;
             // The menu's buttons are the same whatever the game's are set to: the arrows, the d-pad and the
-            // left stick (and the game's own directions); Space, Enter and A choose; Backspace and B go back
-            unsigned menuNow = 0;
-            menuNow |= (previousPad & kUp) || keys[SDL_SCANCODE_UP] ? recomp::kMenuUp : 0;
-            menuNow |= (previousPad & kDown) || keys[SDL_SCANCODE_DOWN] ? recomp::kMenuDown : 0;
-            menuNow |= (previousPad & kLeft) || keys[SDL_SCANCODE_LEFT] ? recomp::kMenuLeft : 0;
-            menuNow |= (previousPad & kRight) || keys[SDL_SCANCODE_RIGHT] ? recomp::kMenuRight : 0;
-            menuNow |= keys[SDL_SCANCODE_SPACE] || (keys[SDL_SCANCODE_RETURN] && !(SDL_GetModState() & SDL_KMOD_ALT)) ? recomp::kMenuConfirm : 0;
-            menuNow |= keys[SDL_SCANCODE_BACKSPACE] ? recomp::kMenuBack : 0;
-            for (SDL_Gamepad *gp : gamepads) {
-                menuNow |= SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_DPAD_UP) ? recomp::kMenuUp : 0;
-                menuNow |= SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_DPAD_DOWN) ? recomp::kMenuDown : 0;
-                menuNow |= SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_DPAD_LEFT) ? recomp::kMenuLeft : 0;
-                menuNow |= SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_DPAD_RIGHT) ? recomp::kMenuRight : 0;
-                menuNow |= SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_SOUTH) ? recomp::kMenuConfirm : 0;
-                menuNow |= SDL_GetGamepadButton(gp, SDL_GAMEPAD_BUTTON_EAST) ? recomp::kMenuBack : 0;
-            }
+            // left stick (recomp-common/menu_sdl.h, MenuHeld), and the game's own directions; Space, Enter and A
+            // choose; Backspace and B go back
+            unsigned menuNow = recomp::sdl::MenuHeld(keys, gamepads.data(), static_cast<int>(gamepads.size()));
+            menuNow |= (previousPad & kUp) ? recomp::kMenuUp : 0;
+            menuNow |= (previousPad & kDown) ? recomp::kMenuDown : 0;
+            menuNow |= (previousPad & kLeft) ? recomp::kMenuLeft : 0;
+            menuNow |= (previousPad & kRight) ? recomp::kMenuRight : 0;
             menuNow |= touch.Menu();
             unsigned menuPressed = menuRepeat.Step(menuNow);
             if (both) {
@@ -1116,6 +1158,7 @@ int RunWindowed(Port &port) {
                 }
                 const NativeGpu::Overlay over = {menuPicture.data(), static_cast<int>(menuWidth), static_cast<int>(menuHeight), false, menuVersion};
                 presenter.ShowNative(*gpuFrame, port.machine->GpuVideo(), port.machine->GpuText(), where, &over);
+                menuPlace = {where.x, where.y, where.w, where.h, static_cast<int>(menuWidth), static_cast<int>(menuHeight)};
             } else {
                 if (menuBase.empty()) {
                     port.MenuPicture(menuBase, menuWidth, menuHeight, menuWantWidth, menuWantHeight); // (the GPU's frame gone meanwhile, or the size changed)
@@ -1128,6 +1171,9 @@ int RunWindowed(Port &port) {
                     menuVersion++;
                 }
                 presenter.Show(menuPicture.data(), static_cast<int>(menuWidth), static_cast<int>(menuHeight), where, nullptr, false);
+                // (the menu's picture over the window's pixels where the game's is: present.h, the window has no high pixel
+                // density, so its pixels are the mouse's points)
+                menuPlace = {where.x, where.y, where.w, where.h, static_cast<int>(menuWidth), static_cast<int>(menuHeight)};
             }
             // (the checks, CPS3RECOMP_WINDOW_SHOT: the menu as the window shows it, to PREFIXmenu<frame>.png)
             if (static const char *menuShot = getenv("CPS3RECOMP_WINDOW_SHOT"); menuShot && menuVersion != menuShotVersion) {
@@ -1183,10 +1229,18 @@ int RunWindowed(Port &port) {
             }
             SDL_PutAudioStreamData(audio, made.data(), static_cast<int>(made.size() * sizeof(int16_t)));
         }
+        // (the video being recorded: the game's sound as heard; the soundtrack's below)
+        const bool recording = ran && port.recorder.Recording();
+        std::vector<int16_t> recorded;
+        if (recording) {
+            recorded = made;
+        }
         made.clear();
+        bool musicFresh = false;
         if (ran && port.soundtrackOn && port.soundtrack.Any()) {
             // (fed as the game's sound is: the game's time's worth each frame, kept a frame or two ahead of the device)
             port.soundtrack.Make(port.machine->soundtrack.state, !FastForward() && !port.hurry, musicMade);
+            musicFresh = true;
             if (!musicMade.empty()) {
                 const int rate = port.soundtrack.Rate();
                 if (!music) {
@@ -1216,6 +1270,10 @@ int RunWindowed(Port &port) {
                 SDL_SetAudioStreamFrequencyRatio(music, static_cast<float>(ratio));
                 SDL_PutAudioStreamData(music, musicMade.data(), static_cast<int>(musicMade.size() * sizeof(float)));
             }
+        }
+        if (recording) {
+            port.VideoFrame(recorded.data(), recorded.size() / 2, musicFresh ? musicMade.data() : nullptr, musicFresh ? musicMade.size() / 2 : 0,
+                            port.soundtrack.Rate());
         }
 
         // The frame drawn by the GPU from the native video interface (Presenter::ShowNative), where the machine made it
@@ -1254,6 +1312,13 @@ int RunWindowed(Port &port) {
             }
         }
 
+        // (the instant replay being made, if it is: a few of its frames in the time this tick has to spare, a little
+        // over half of it; unthrottled or fast forward, 4 ms)
+        if (port.instant.making) {
+            const uint64_t now = SDL_GetTicksNS(), due = nextFrame + static_cast<uint64_t>(kFrameNs);
+            const bool paced = !port.opt.unthrottled && !FastForward();
+            port.ReplayMake(paced ? (due > now ? (due - now) / 1e6 * 0.6 : 0.0) : 4.0);
+        }
         if (!port.opt.unthrottled && !FastForward()) {
             nextFrame += static_cast<uint64_t>(kFrameNs);
             const uint64_t now = SDL_GetTicksNS();
@@ -1296,6 +1361,10 @@ int RunWindowed(Port &port) {
     }
     presenter.Close();
     SDL_DestroyWindow(window);
+    while (port.instant.making) { // (a replay being made, finished first)
+        port.ReplayMake(1000); // (no game to keep at speed any more)
+    }
+    port.StopVideo(); // (a video being recorded finished: before SDL_Quit, which takes its sound converters with it)
     SDL_Quit();
     return 0;
 }

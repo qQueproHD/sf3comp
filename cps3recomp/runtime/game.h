@@ -150,8 +150,12 @@ struct Game {
     };
     std::vector<DiscSong> dreamcastMusic;
     int dreamcastVolume = 100;
-    const char *dreamcastDisc = "";
+    const char *dreamcastDisc = "";    // For the scene export's parts of a fight (port/scene.h): what an object of the frame is (ScenePart), from its words
+    // (native::Object::words); `guest`: an object of a guest stage's board (Video::objects of the stage's game). Asked
+    // only while a round is fought (`fighting`). Not given: no parts.
+    int (*scenePart)(const uint32_t *words, bool guest) = nullptr;
 };
+enum ScenePart : int { kPartOther, kPartStage, kPartPlayer1, kPartPlayer2, kPartPanel };
 Game &TheGame();
 // The game's sources fill it in (games/<id>/src; runtime/no_game.cpp when a game has none)
 void RegisterGame();
@@ -243,8 +247,14 @@ struct HudBox {
     int x, y, width, height;
     uint8_t r, g, b;
     uint8_t fill = 56;
+    // (a hit box's: what it is and whose, for the scene export, port/scene.h, which keeps the hit boxes apart from the rest
+    // of the readout; kHudDrawn for anything else drawn)
+    uint8_t kind = 0;    // (HudBoxKind)
+    bool thrown = false; // (it belongs to something thrown)
+    int8_t player = -1;  // (0 or 1; -1 not known)
     bool operator==(const HudBox &) const = default;
 };
+enum HudBoxKind : uint8_t { kHudDrawn, kHudHurt, kHudAttack, kHudPush, kHudThrow, kHudThrowable };
 void SetBoxes(std::vector<HudBox> boxes);
 const std::vector<HudBox> &Boxes();
 

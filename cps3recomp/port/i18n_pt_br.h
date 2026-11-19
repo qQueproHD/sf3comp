@@ -1,0 +1,72 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Tommy McLeroy. Part of cps3recomp (sf3comp); from cps2recomp.
+//
+// The port's own words in this language (i18n.h); cps2recomp's translations of the same words.
+#pragma once
+
+#include "../recomp-common/i18n.h"
+
+namespace port {
+
+inline constexpr recomp::i18n::Entry kPortuguese[] = {
+    {"Video", "Vídeo"},
+    {"What you play and hear, recorded as an MP4 video that plays anywhere.", "O que você joga e ouve, gravado como um vídeo MP4 que toca em qualquer lugar."},
+    {"Record video", "Gravar vídeo"},
+    {"Records the game as you play it, with its sound (the custom soundtrack's too), as an MP4 video in videos beside your saves, until this row again (Stop recording) or Alt+F12. The picture is as screenshots take it, readouts and all, without the lines at the bottom; the video's time is the game's: stopped or in this menu nothing is recorded, and slowed or sped up it plays at the game's own speed.", "Grava o jogo como você joga, com o som (também o da trilha sonora personalizada), como um vídeo MP4 em videos ao lado dos seus saves, até esta linha de novo (Parar gravação) ou Alt+F12. A imagem é como as capturas a tiram, com as leituras, sem as linhas de baixo; o tempo do vídeo é o do jogo: parado ou neste menu nada é gravado, e mais lento ou mais rápido ele toca na velocidade do próprio jogo."},
+    {"Video size", "Tamanho do vídeo"},
+    {"How large Record video makes the picture: so many times the board's lines, each of its pixels a sharp block, in the shape the Display page shows it in.", "O tamanho que Gravar vídeo dá à imagem: tantas vezes as linhas da placa, cada pixel um bloco nítido, no formato em que a página Tela a mostra."},
+    {"3 times (672 lines)", "3 vezes (672 linhas)"},
+    {"2 times (448 lines)", "2 vezes (448 linhas)"},
+    {"4 times (896 lines)", "4 vezes (896 linhas)"},
+    {"1080 lines", "1080 linhas"},
+    {"Show videos folder", "Mostrar pasta de vídeos"},
+    {"Opens videos beside your saves, where Record video writes, in your file manager.", "Abre videos ao lado dos seus saves, onde Gravar vídeo escreve, no seu gerenciador de arquivos."},
+    {"Stop recording video", "Parar gravação de vídeo"},
+    {"Ends the video being recorded and saves it.", "Termina o vídeo sendo gravado e o salva."},
+    {"RECORDING VIDEO", "GRAVANDO VÍDEO"},
+    {"VIDEO SAVED", "VÍDEO SALVO"},
+    {"VIDEO NOT SAVED", "VÍDEO NÃO SALVO"},
+    {"30 seconds", "30 segundos"},
+    {"10 seconds", "10 segundos"},
+    {"Save replay", "Salvar replay"},
+    {"Saves what was just played, as long as Replay length says, as a video in videos (as Record video's, its sound too): kept all the while, so it needs no recording started. Made beside the game in a few seconds, which goes on meanwhile. Also Alt+Shift+F12.", "Salva o que acabou de ser jogado, pelo tempo que Duração do replay diz, como um vídeo em videos (como o de Gravar vídeo, com o som também): é guardado o tempo todo, então não é preciso começar a gravar. Feito ao lado do jogo em alguns segundos, e o jogo continua enquanto isso. Também Alt+Shift+F12."},
+    {"Replay length", "Duração do replay"},
+    {"How much of what was just played Save replay saves. Kept as a save state every second (what each has the same as the one before kept once) and the controls of every frame: 30 seconds of it is about 40 megabytes of memory, 60 on another game's stage. Not online.", "Quanto do que acabou de ser jogado Salvar replay salva. Guardado como um estado a cada segundo (o que cada um tem igual ao anterior, uma vez só) e os controles de cada frame: 30 segundos são uns 40 megabytes de memória, 60 no cenário de outro jogo. Não online."},
+    {"60 seconds", "60 segundos"},
+    {"Off", "Desligado"},
+    {"A REPLAY IS STILL BEING SAVED", "UM REPLAY AINDA ESTÁ SENDO SALVO"},
+    {"NOTHING TO REPLAY YET", "AINDA NÃO HÁ NADA PARA O REPLAY"},
+    {"REPLAY LENGTH IS OFF", "A DURAÇÃO DO REPLAY ESTÁ DESLIGADA"},
+    {"REPLAY NOT SAVED", "REPLAY NÃO SALVO"},
+    {"SAVING REPLAY...", "SALVANDO REPLAY..."},
+    {"REPLAY SAVED", "REPLAY SALVO"},
+    {"SVG pictures too", "Imagens SVG também"},
+    {"5 seconds", "5 segundos"},
+    {"3 seconds", "3 segundos"},
+    {"Scene export", "Exportar cena"},
+    {"The picture taken apart: each of the board's layers by itself, as pictures with nothing where a layer has nothing, for one frame or a few seconds.", "A imagem em partes: cada camada da placa separada, como imagens sem nada onde a camada não tem nada, de um frame ou de alguns segundos."},
+    {"Record clip", "Gravar clipe"},
+    {"Saves the same for each frame from now, for as long as Clip length says, each layer's frames in a folder of their own (this row again, or Ctrl+F12, stops sooner). The game goes on as it does.", "Salva o mesmo para cada frame a partir de agora, pelo tempo que Duração do clipe disser, os frames de cada camada numa pasta própria (esta linha de novo, ou Ctrl+F12, para antes). O jogo continua normalmente."},
+    {"Clip length", "Duração do clipe"},
+    {"How long Record clip records for.", "Quanto tempo Gravar clipe grava."},
+    {"Show scenes folder", "Mostrar pasta de cenas"},
+    {"Opens exports/scenes beside your saves, where Save scene and Record clip write, in your file manager.", "Abre exports/scenes ao lado dos seus saves, onde Salvar cena e Gravar clipe escrevem, no seu gerenciador de arquivos."},
+    {"Stop recording", "Parar gravação"},
+    {"Ends the clip being recorded here; its frames so far are kept.", "Termina aqui o clipe sendo gravado; os frames até agora são mantidos."},
+    {"NO SCENE TO SAVE YET", "AINDA NÃO HÁ CENA PARA SALVAR"},
+    {"SCENE NOT SAVED", "CENA NÃO SALVA"},
+    {"SCENE SAVED", "CENA SALVA"},
+    {"RECORDING SCENE CLIP", "GRAVANDO CLIPE DE CENA"},
+    {"A CLIP IS STILL BEING SAVED", "UM CLIPE AINDA ESTÁ SENDO SALVO"},
+    {"CLIP NOT SAVED", "CLIPE NÃO SALVO"},
+    {"CLIP SAVED", "CLIPE SALVO"},
+    {"CLIP CUT SHORT", "CLIPE CORTADO"},
+    {"SAVING SCENE CLIP...", "SALVANDO CLIPE DE CENA..."},
+    {"Saves the picture as it is now, and each of its layers by itself (the board's tilemaps, the objects between them, which hold the fighters, the panel and parts of stages, and its text layer) with nothing where the layer has nothing, in a folder of its own in exports/scenes beside your saves, with a scene.json of the layers' order, back to front. A fight on another game's stage has that stage's layers too. Also Shift+F12.", "Salva a imagem como está agora, e cada uma das suas camadas por si só (os tilemaps da placa, os objetos entre eles, que têm os lutadores, o painel e partes dos cenários, e a sua camada de texto) sem nada onde a camada não tem nada, numa pasta própria em exports/scenes ao lado dos seus saves, com um scene.json da ordem das camadas, de trás para frente. Uma luta no cenário de outro jogo tem também as camadas desse cenário. Também Shift+F12."},
+    {"Screenshots (F12) and Save scene also write SVG pictures beside their PNGs: each pixel a square, so they scale to any size exactly, in the Display page's shape. A scene's has each layer as a layer of its own (scene.svg), for drawing programs. Not for clips.", "As capturas (F12) e Salvar cena gravam também imagens SVG ao lado dos PNG: cada pixel um quadrado, então elas escalam para qualquer tamanho com exatidão, no formato da página Tela. A de uma cena tem cada camada como uma camada própria (scene.svg), para programas de desenho. Não para os clipes."},
+    {"Scene diorama", "Diorama de cenas"},
+    {"Open diorama", "Abrir diorama"},
+    {"Opens the scenes you save in the games (Game > Scene export) in your browser as 3D cut-outs, to turn, pull apart and photograph.", "Abre as cenas que você salva nos jogos (Jogo > Exportar cena) no seu navegador como recortes em 3D, para girar, separar e fotografar."},
+};
+
+} // namespace port

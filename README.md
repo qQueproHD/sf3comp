@@ -95,7 +95,7 @@ games' stage code, run beside 3rd Strike's.
 
 ## Alternative modes (3rd Strike)
 
-The in-game menu's first row has ways to play the board never had: **survival**, **endless battle** (the game plays
+The in-game menu's Alternative modes page has ways to play the board never had: **survival**, **endless battle** (the game plays
 both fighters on stages that scroll or fade one into the next; touch the controls to take one over), **ring out**,
 a **tag team battle** (tag your partner in, or two against two for four players), the **bonus games** straight
 away, a **stage viewer**, a **model viewer** and a **colour editor** whose colours you then fight in. And **Gill**,
@@ -115,6 +115,12 @@ playable by either player.
 - **An in-game menu** (Esc or F1; on a gamepad the left stick's click, or Start and Select together): save states,
   speed, the cheats, the board's own settings and test menu, every feature. Pure plays exactly as the board does;
   Enhanced (the default) adds free play, arcade timing, integer scaling and, in widescreen, invisible walls.
+- **Scene export**: any moment of any game saved as its layers, each a see-through PNG (the board's tilemaps, the
+  objects between them, the text layer; a guest stage's too), for a frame or a few seconds of them, and shown as 3D
+  cut-outs in the scene diorama ([more](docs/FEATURES.md#scene-export)).
+- **Video recording**: what you play and hear saved as an MP4 that plays anywhere, the pixels sharp at 3 times the
+  board's size or more, the custom soundtrack too (Alt+F12, or the menu's **Game > Video** page); and **instant
+  replay**, the last 30 seconds saved after they happen (Alt+Shift+F12) ([more](docs/FEATURES.md#video-recording)).
 - **Controls**: keyboard, gamepad or arcade stick, every button changeable per player.
 - **A custom soundtrack**: your own music in place of the board's, by song or as a playlist.
 - **The Dreamcast version's arranged music** (3rd Strike): put your own disc image of the Dreamcast 3rd Strike (a .cue or

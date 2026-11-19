@@ -204,7 +204,8 @@ namespace {
         for (const uint32_t base : Projectiles()) {
             records.push_back(base);
         }
-        for (const uint32_t base : records) {
+        for (size_t record = 0; record < records.size(); record++) {
+            const uint32_t base = records[record];
             const int px = Signed16(base + sfiii3::kX) - cameraX + middle; // (the picture's middle: widescreen's columns, and its shift)
             const int py = Video::kHeight - (Signed16(base + sfiii3::kY) - cameraY) - 23;
             const bool flipped = Ram8(base + sfiii3::kFacing) != 0;
@@ -224,7 +225,12 @@ namespace {
                     const int x = flipped ? px - left - width : px + left;
                     static constexpr uint8_t kColour[5][3] = {{60, 120, 255}, {255, 40, 40}, {60, 220, 60}, {255, 230, 40}, {255, 60, 255}};
                     const uint8_t *c = kColour[list.kind];
-                    boxes.push_back({x, py - bottom - height, width, height, c[0], c[1], c[2]});
+                    HudBox shown{x, py - bottom - height, width, height, c[0], c[1], c[2]};
+                    static constexpr uint8_t kKind[5] = {kHudHurt, kHudAttack, kHudPush, kHudThrow, kHudThrowable};
+                    shown.kind = kKind[list.kind];
+                    shown.thrown = record >= 2;
+                    shown.player = record < 2 ? static_cast<int8_t>(record) : -1;
+                    boxes.push_back(shown);
                 }
             }
         }
@@ -663,7 +669,10 @@ void TrainingAfterFrame(Machine &m) {
     session::Frame(m);
 }
 
+int ScenePartOf(const uint32_t *words, bool guest); // (stages.cpp)
+
 void RegisterTraining(Game &game) {
+    game.scenePart = ScenePartOf;
     session::Description d;
     d.player[0] = sfiii3::kPlayer[0];
     d.player[1] = sfiii3::kPlayer[1];

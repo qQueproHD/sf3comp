@@ -59,6 +59,12 @@ public:
     // gamepad buttons that are the same whatever the game's are set to: the arrows, the d-pad and the left
     // stick; Space, Enter and A choose; Backspace and B go back.
     Action Press(unsigned buttons);
+    // What the shared menu returned (its mouse's, say: recomp-common/menu_sdl.h, MouseEvent), as Press returns it
+    Action Take(const recomp::Menu::Chosen &chosen);
+    // The shared menu itself, for the mouse's events
+    recomp::Menu &Shared() {
+        return Shown();
+    }
     // The "Sound" row: the frontend plays nothing while this is set (--mute starts with it set)
     bool muted = false;
     // The Replays page's rows after the game's commands' (the port's match replays): a title and what it says for
@@ -77,6 +83,8 @@ public:
         return m_replay;
     }
     bool hosting = false; // (a match hosted from the Online page, waited for: its row is Stop hosting)
+    bool recordingClip = false;  // (a scene clip being recorded: the Scene export page's Record clip row is Stop recording)
+    bool recordingVideo = false; // (a video being recorded: the Video page's Record video row is Stop recording video)
     int Slot() const {
         return m_menu.Slot();
     }
@@ -121,7 +129,6 @@ public:
     }
 
 private:
-    static void Speeds(recomp::MenuConfig &config);
     // (the menu open, or last open: the online match's while it is)
     recomp::Menu &Shown() {
         return m_online ? m_onlineMenu : m_menu;

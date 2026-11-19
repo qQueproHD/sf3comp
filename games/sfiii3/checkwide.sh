@@ -45,7 +45,8 @@ run() { # KIND NAME FRAMES ARGS...
     fi
     echo $? > "$OUT/$name.status"
 }
-# (the menu's script, mdaam: opened, down to Display, into it, Widescreen changed, closed)
+# (the menu's script, mdadam: opened, down to Display, into it, down past the Arcade monitor page to Widescreen,
+# changed, closed)
 KINDS="cpu gpu"
 [ "${CHECKWIDE_GPU:-1}" = 0 ] && KINDS=cpu
 for kind in $KINDS; do
@@ -53,11 +54,11 @@ for kind in $KINDS; do
         [ "$wide" = widescreen ] && n=wide || n=narrow
         run "$kind" "$kind-start-$n" 1500 --features "skip_intro,$wide" &
         [ "$kind" = gpu ] && wait
-        CPS3RECOMP_MENU_SCRIPT=$SWITCH:mdaam run "$kind" "$kind-switch-$n" 1500 --features "skip_intro,$([ $n = wide ] && echo -widescreen || echo widescreen)" &
+        CPS3RECOMP_MENU_SCRIPT=$SWITCH:mdadam run "$kind" "$kind-switch-$n" 1500 --features "skip_intro,$([ $n = wide ] && echo -widescreen || echo widescreen)" &
         [ "$kind" = gpu ] && wait
         run "$kind" "$kind-viewer-start-$n" 2600 --features "skip_intro,$wide,viewer_stage=18,viewer_scroll=1" --keys 30:cviewer_start &
         [ "$kind" = gpu ] && wait
-        CPS3RECOMP_MENU_SCRIPT=1700:mdaam run "$kind" "$kind-viewer-switch-$n" 2600 \
+        CPS3RECOMP_MENU_SCRIPT=1700:mdadam run "$kind" "$kind-viewer-switch-$n" 2600 \
             --features "skip_intro,$([ $n = wide ] && echo -widescreen || echo widescreen),viewer_stage=18,viewer_scroll=1" --keys 30:cviewer_start &
         wait
     done

@@ -38,7 +38,7 @@ const Facts &TheFacts() {
         .selectState = {0x0201553D, 0x02015545},
         .cameraX = 0x02026CB0, .cameraY = 0x02026CB4, .cameraRight = 0x02026CF4, .cameraLeft = 0x02026CF8,
         .wall = 164,
-        .stage = 0x020154F5, .stageNames = kStageNames, .stageNumbers = kStageNumbers, .stages = 21,
+        .stage = 0x020154F5, .stageNames = kStageNames, .stageNumbers = kStageNumbers, .stages = 21, .stagePalette = 0x80,
         .characters = kCharacters, .characterCount = 21,
         .record = {
             .computer = 3,
