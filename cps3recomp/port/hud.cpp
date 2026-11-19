@@ -40,12 +40,15 @@ std::vector<HudPanel> HudPanels(int width, int height) {
     return panels;
 }
 
-void DrawHud(uint32_t *pixels, int width, int height, std::vector<SDL_Rect> *panels) {
+void DrawHud(uint32_t *pixels, int width, int height, std::vector<SDL_Rect> *panels, unsigned parts) {
     // The boxes first, so that the text is over them
     const recomp::text::Canvas canvas{pixels, width, height};
     for (const cps3recomp::HudBox &box : cps3recomp::Boxes()) {
         const float x = static_cast<float>(box.x), y = static_cast<float>(box.y);
         const float w = static_cast<float>(box.width), h = static_cast<float>(box.height);
+        if (!(parts & (box.kind == cps3recomp::kHudDrawn ? kHudDrawnBoxes : kHudHitBoxes))) {
+            continue;
+        }
         if (box.x >= width || box.y >= height || box.x + box.width <= 0 || box.y + box.height <= 0) {
             continue;
         }
@@ -58,6 +61,9 @@ void DrawHud(uint32_t *pixels, int width, int height, std::vector<SDL_Rect> *pan
         canvas.Fill(x, y + h - 1, w, 1, line);
         canvas.Fill(x, y, 1, h, line);
         canvas.Fill(x + w - 1, y, 1, h, line);
+    }
+    if (!(parts & kHudText)) {
+        return;
     }
     for (const HudPanel &panel : HudPanels(width, height)) {
         if (panels) {

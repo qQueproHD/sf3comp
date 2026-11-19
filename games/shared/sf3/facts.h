@@ -63,6 +63,10 @@ struct Facts {
     const char *const *stageNames; // the Stage row's choices after "The game's choice", each `stageNumbers`' stage
     const uint8_t *stageNumbers;
     int stages;
+    // The stage's own objects (the scene export's parts, ScenePartOf): those of palettes from this one up, besides its
+    // tilemaps. New Generation's and 2nd Impact's from 0x40 (and those of 8 bits a pixel: the fighters, their effects to
+    // 0x3F and their shadows are 6 bits); 3rd Strike's 0x80 to 0xFF and 0x1FF (its effects and the like between)
+    int stagePalette = 0x40;
     const char *const *characters; // by the record's character number
     int characterCount;
 

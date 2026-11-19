@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Scene export: parts, objects, overlays** (cps2recomp's): in a round, a scene and a clip's frames are also split by
+  what is in them: the stage behind, each player, the stage in front, the panel and the rest; a saved scene has each
+  object by itself (`entries.png`, `entry-map.png`); in training, the hit boxes and the readout are overlays of their
+  own, the boxes listed with their player. The diorama shows them as cps2recomp's do.
 - **The in-game menu laid out as in the other recomp ports** (recomp-common's standard layout): Online, Display,
   Game, Replays and Stage first; then Alternative modes. In New Generation, 2nd Impact, 3rd Strike 990608 and 4rd
   Strike, Training mode (and Dummy under it) is now under Alternative modes, as in 3rd Strike. Some words as the

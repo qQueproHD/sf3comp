@@ -110,9 +110,26 @@ each layer's frames in a folder of their own (`objects-0/0001.png`...), with eac
 files are written by threads beside the game. With **SVG pictures too** (Game page), a scene also has `scene.svg`: the
 backdrop and each layer back to front, each a group (an Inkscape layer).
 
+In a round (every game), a scene and each frame of a clip are split by what is in them as well (`parts` in
+`scene.json`, cps2recomp's): `part-stage-behind`, `part-other` (shadows, sparks, projectiles, the round's banners),
+`part-player1` and `part-player2` (the one drawn later in front), `part-stage-front` (a stage's pieces in front of the
+fighters: Remy's stage's bollard) and `part-panel` (the text layer: the life bars, the timer, the meters). A fighter is
+told by its objects (6 bits a pixel, a palette below 0x20, not a blend), and whose by its palette: the palette DMA puts
+player 1's at colours 0x000-0x3FF and player 2's from 0x400. Each part is whole where another covers it, and laid over
+each other they too make the picture (but where a spark or a projectile is in front of a fighter: the parts' order is
+fixed, `part-other` behind the players). A saved scene also has each object by itself (`entries` in `scene.json`, their
+pictures side by side in `entries.png`, and `entry-map.png`, which object is in front at each pixel): a CPS-3 object is
+a tile or a few, so an object here is a head of the board's list, all its tiles (a fighter's whole picture, a tree), drawn by itself
+with any shadow that falls on it, as its layer has it.
+In a training session with hit boxes or a readout on, `overlay-boxes.png` and `overlay-hud.png` hold what the port
+draws over the picture, and `scene.json` lists the hit boxes, each with its player. The diorama shows the parts by
+default, lets you pick out an object, and puts each player's hit boxes just in front of them.
+
 `games/sfiii3/checkscene.sh` checks it: at the title and in a fight, on 3rd Strike's own stage and on New Generation's,
 in 4:3 and widescreen, headless and through the window's GPU path, every scene's layers and a clip's every frame put
-back together make the picture pixel for pixel.
+back together make the picture pixel for pixel, and so do a fight's parts (`part-other` behind the players or in
+front of them); each object by itself is its layer where it
+is in front; and a training session's scenes have the overlays and both players' hit boxes.
 
 **The scene diorama** (`tools/diorama/diorama.html`, cps2recomp's, unchanged) shows what these save as cut-outs at their
 own depths: the launcher's **Open diorama** (Games page, Tools) opens it in the browser, as does opening the file

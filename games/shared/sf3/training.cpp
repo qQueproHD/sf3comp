@@ -198,7 +198,8 @@ namespace {
         for (const uint32_t base : Projectiles()) {
             records.push_back(base);
         }
-        for (const uint32_t base : records) {
+        for (size_t record = 0; record < records.size(); record++) {
+            const uint32_t base = records[record];
             const int px = Signed16(base + R().x) - cameraX + middle - WorldShift(); // (widescreen.cpp: invisible walls)
             const int py = Video::kHeight - (Signed16(base + R().y) - cameraY) - 23;
             const bool flipped = Ram8(base + R().facing) != 0;
@@ -221,7 +222,12 @@ namespace {
                     const int x = flipped ? px - left - width : px + left;
                     static constexpr uint8_t kColour[5][3] = {{60, 120, 255}, {255, 40, 40}, {60, 220, 60}, {255, 230, 40}, {255, 60, 255}};
                     const uint8_t *c = kColour[list.kind];
-                    boxes.push_back({x, py - bottom - height, width, height, c[0], c[1], c[2]});
+                    HudBox shown{x, py - bottom - height, width, height, c[0], c[1], c[2]};
+                    static constexpr uint8_t kKind[5] = {kHudHurt, kHudAttack, kHudPush, kHudThrow, kHudThrowable};
+                    shown.kind = kKind[list.kind];
+                    shown.thrown = record >= 2;
+                    shown.player = record < 2 ? static_cast<int8_t>(record) : -1;
+                    boxes.push_back(shown);
                 }
             }
         }
@@ -627,7 +633,31 @@ void TrainingState(Archive &ar) {
     session::State(ar);
 }
 
-void RegisterTraining(Game &) {
+// What an object of the frame is, for the scene export's parts (Game::scenePart): a fighter's (6 bits a pixel, a palette
+// below 0x20, not a blend: the players' palettes, 0x08 and 0x10 most often, 0x00 and 0x18 by the colour chosen) is player
+// 1's below 0x10 (colours 0x000-0x3FF, where the palette DMA puts player 1's) and player 2's from it; the stage's, its
+// tilemaps and its palettes (Facts::stagePalette), and all of a guest stage's; the rest (shadows, sparks, projectiles,
+// the round's banners) something else. The panel is the text layer, not objects
+int ScenePartOf(const uint32_t *words, bool guest) {
+    if (guest) {
+        return kPartStage;
+    }
+    const uint32_t v1 = words[0], v3 = words[2], palette = v1 & 0x1FF;
+    const bool sixBits = (v1 >> 9) & 1, blend = (v1 >> 10) & 1;
+    if ((v3 & 3) == 0) {
+        return kPartStage;
+    }
+    if (sixBits && palette < 0x20 && !blend) {
+        return palette < 0x10 ? kPartPlayer1 : kPartPlayer2;
+    }
+    const int from = TheFacts().stagePalette;
+    const bool stage = from >= 0x80 ? (palette >= 0x80 && palette < 0x100) || palette == 0x1FF
+                                    : (palette >= static_cast<uint32_t>(from) || !sixBits) && !(blend && palette == 0);
+    return stage ? kPartStage : kPartOther;
+}
+
+void RegisterTraining(Game &game) {
+    game.scenePart = ScenePartOf;
     const sf3::Facts &f = TheFacts();
     session::Description d;
     d.player[0] = f.player[0];
