@@ -122,6 +122,7 @@ namespace {
         bool started = false;       // the first match is on (the one the boot led to)
         uint32_t frames = 0, random = 0x2545F491u;
         uint8_t want[2] = {};       // the characters of the next match (the first's: what the choice took)
+        uint8_t wantArt[2] = {0xFF, 0xFF}; // ... and their super arts (0-2; 0xFF: as the character select's cursor has it)
         uint8_t health[2] = {};     // health carried into the next match (0: full)
         uint8_t wins[2] = {};       // rounds won at the last frame (a round decided: one goes up)
         bool decided = false;       // the match on is decided: the next being made
@@ -146,6 +147,8 @@ namespace {
         int blend = 0;              // (shuffled) frames of the next stage fading in (of kBlend)
         // team
         uint8_t member[2][kMost] = {};
+        uint8_t memberArt[2][kMost] = {}; // (each one's super art, 0-2: the team rows' "super art")
+        bool online = false;        // (started by an online match's event, the same on both machines: StartOnline)
         uint8_t size = 2;
         uint8_t next[2] = {};
         // survival, team: over
@@ -221,6 +224,7 @@ namespace {
     // Kept by the pair, not in the mode's save states (what is missing is made again, as it is needed: MakeTagSpares)
     struct Pair {
         uint8_t one = 0, two = 0, stage = 0xFF;
+        uint8_t oneArt = 0xFF, twoArt = 0xFF; // (their super arts: State::wantArt)
         Spare spare;
     };
     std::vector<Pair> g_pairs;
@@ -332,6 +336,10 @@ namespace {
             } else if (!Locked() && state >= 2 && (p == 1 || choosePlayerOne)) {
                 SetRam8(sfiii3::kChosen[p], b.want[p]);
                 m.players[p] = state < 5 && press ? kPunch1 : 0;
+                // (a team's fighter's super art as its row has it: the cursor moved down to it, as survival's below)
+                if (b.mode == kTeam && b.wantArt[p] < 3 && state == 4 && Ram8(sfiii3::kSelectArt[p]) != b.wantArt[p]) {
+                    m.players[p] = press ? kDown : 0;
+                }
                 if (p == 0 && b.colour != 0xFF && (b.mode == kSurvival || b.mode == kRingOut)) {
                     // (the player's character as it chose it: its super art (the cursor moved down to it), its colours)
                     if (state == 4 && Ram8(sfiii3::kSelectArt[0]) != b.art) {
@@ -367,13 +375,16 @@ namespace {
         mixed ^= mixed >> 29;
         return static_cast<uint32_t>(mixed ^ (mixed >> 32)) | 1u;
     }
+    uint32_t g_onlineSeed = 0; // (StartOnline's: both machines' dice the same, for the Begin it makes)
     void Begin(Machine &machine, Mode mode) {
         const uint64_t frame = machine.frame; // (before the reset)
         session::StartSession(machine); // (the board reset, the way to character select for two players)
         SetFeature("training_mode", false);
         b = {};
         b.mode = mode;
-        b.random = Seed(frame);
+        b.random = g_onlineSeed ? g_onlineSeed : Seed(frame);
+        b.online = g_onlineSeed != 0;
+        g_onlineSeed = 0;
         g_atChoice.clear();
         g_next.Clear();
         g_pairs.clear();
@@ -428,6 +439,7 @@ namespace {
         static const char *const kNames[2][kMost] = {{"team_1_1", "team_1_2", "team_1_3"}, {"team_2_1", "team_2_2", "team_2_3"}};
         for (int side = 0; side < 2; side++) {
             for (int n = 0; n < kMost; n++) {
+                b.memberArt[side][n] = static_cast<uint8_t>(std::clamp(FeatureValue((std::string(kNames[side][n]) + "_art").c_str()), 0, 2));
                 const int chosen = Choice(kNames[side][n]);
                 if (chosen >= 0) {
                     b.member[side][n] = static_cast<uint8_t>(chosen);
@@ -444,6 +456,7 @@ namespace {
                 b.member[side][n] = pick;
             }
             b.want[side] = b.member[side][0];
+            b.wantArt[side] = b.memberArt[side][0];
             for (int n = 0; n < kMost; n++) {
                 b.kept[side][n] = n < b.size ? sfiii3::kFullLife : 0;
             }
@@ -517,6 +530,7 @@ namespace {
                 b.next[loser] = static_cast<uint8_t>(next);
                 b.health[loser] = b.kept[loser][next];
                 b.want[loser] = b.member[loser][next];
+                b.wantArt[loser] = b.memberArt[loser][next];
                 break;
             }
             if (++b.next[loser] >= b.size) {
@@ -526,6 +540,7 @@ namespace {
                 return;
             }
             b.want[loser] = b.member[loser][b.next[loser]];
+            b.wantArt[loser] = b.memberArt[loser][b.next[loser]];
             // (the winner stays on with what it has left and a little back, as survival gives: a tenth)
             b.health[winner] = static_cast<uint8_t>(std::min<int>(sfiii3::kFullLife, (b.health[winner] ? b.health[winner] : sfiii3::kFullLife) +
                                                                                        sfiii3::kFullLife / 10));
@@ -894,43 +909,50 @@ namespace {
                static_cast<int16_t>(Ram16(base + sfiii3::kY)) <= 0 && Ram8(base + sfiii3::kThrown) == 0;
     }
     // The fight of side 1's `one` against side 2's `two` on the stage fought on (made ready or not)
-    Pair &PairFor(uint8_t one, uint8_t two) {
+    Pair &PairFor(uint8_t one, uint8_t oneArt, uint8_t two, uint8_t twoArt) {
         for (Pair &pair : g_pairs) {
-            if (pair.one == one && pair.two == two && pair.stage == b.stageNow) {
+            if (pair.one == one && pair.two == two && pair.oneArt == oneArt && pair.twoArt == twoArt && pair.stage == b.stageNow) {
                 return pair;
             }
         }
         Pair &pair = g_pairs.emplace_back();
         pair.one = one;
         pair.two = two;
+        pair.oneArt = oneArt;
+        pair.twoArt = twoArt;
         pair.stage = b.stageNow;
         pair.spare.state = g_atChoice;
         return pair;
     }
     // ... the fight a side's tag puts on: its next one against the other side's on now
     Pair &TagPair(int side, int next) {
-        return side == 0 ? PairFor(b.member[0][next], b.want[1]) : PairFor(b.want[0], b.member[1][next]);
+        return side == 0 ? PairFor(b.member[0][next], b.memberArt[0][next], b.want[1], b.wantArt[1])
+                         : PairFor(b.want[0], b.wantArt[0], b.member[1][next], b.memberArt[1][next]);
     }
     // ... made `frames` frames further on its way (the spare loaded once for them)
     void MakePair(Machine &m, Pair &pair, int frames) {
         if (pair.spare.ready || g_atChoice.empty()) {
             return;
         }
-        const uint8_t was[2] = {b.want[0], b.want[1]};
+        const uint8_t was[2] = {b.want[0], b.want[1]}, wasArt[2] = {b.wantArt[0], b.wantArt[1]};
         b.want[0] = pair.one;
         b.want[1] = pair.two;
+        b.wantArt[0] = pair.oneArt;
+        b.wantArt[1] = pair.twoArt;
         Spare &spare = pair.spare;
         RunSpareFrames(m, spare, frames, [&spare](Machine &machine) {
             spare.ready = ToRound(machine, static_cast<uint32_t>(spare.frames), true);
         });
         b.want[0] = was[0];
         b.want[1] = was[1];
+        b.wantArt[0] = wasArt[0];
+        b.wantArt[1] = wasArt[1];
     }
     // Before the first fight: every pair's fight made, unseen and at speed (true while some are still to be made)
     bool PrepareTags(Machine &m) {
         for (int one = 0; one < b.size; one++) {
             for (int two = 0; two < b.size; two++) {
-                Pair &pair = PairFor(b.member[0][one], b.member[1][two]);
+                Pair &pair = PairFor(b.member[0][one], b.memberArt[0][one], b.member[1][two], b.memberArt[1][two]);
                 if (!pair.spare.ready) {
                     MakePair(m, pair, kPrepareFrames);
                     return true;
@@ -980,7 +1002,19 @@ namespace {
     }
     void Tag(Machine &m, int side) {
         const int next = NextUp(side);
-        if (next < 0 || !TagPair(side, next).spare.ready) {
+        if (next < 0) {
+            return;
+        }
+        if (b.online) {
+            // (online: the pairs are kept apart from the save state a rollback puts back, so one machine may have a pair's
+            // fight made when the other has not yet; the tag must happen on both alike, so the fight is finished now, as
+            // the other machine's is, the same fight from the same machine at character select)
+            Pair &pair = TagPair(side, next);
+            for (int n = 0; n < 100 && !pair.spare.ready; n++) {
+                MakePair(m, pair, kPrepareFrames);
+            }
+        }
+        if (!TagPair(side, next).spare.ready) {
             return;
         }
         const int other = 1 - side;
@@ -1036,6 +1070,7 @@ namespace {
         SetRam8(sfiii3::kPlayer[side] + sfiii3::kLife, b.kept[side][next]);
         b.next[side] = static_cast<uint8_t>(next);
         b.want[side] = b.member[side][next];
+        b.wantArt[side] = b.memberArt[side][next];
         b.tagCool[side] = b.frames + kTagCool;
         b.taggedAt = b.frames;
         b.wins[0] = won[0];
@@ -2036,7 +2071,7 @@ void RegisterBattle(Game &game) {
                                  kFeatureMenuChoices, teamStages});
     }
     static const char *const kOrder[kMost] = {"first", "second", "third"};
-    static std::string titles[2][kMost], helps[2][kMost];
+    static std::string titles[2][kMost], helps[2][kMost], artNames[2][kMost], artTitles[2][kMost], artHelps[2][kMost];
     static const char *const kNames[2][kMost] = {{"team_1_1", "team_1_2", "team_1_3"}, {"team_2_1", "team_2_2", "team_2_3"}};
     for (int side = 0; side < 2; side++) {
         for (int n = 0; n < kMost; n++) {
@@ -2045,6 +2080,12 @@ void RegisterBattle(Game &game) {
                              (n == 2 ? " (with three fighters a team)" : "") + ": someone at random, or this one.";
             game.features.push_back({kNames[side][n], kTeamPage, titles[side][n].c_str(), helps[side][n].c_str(),
                                      kFeatureMenuChoices, fighters});
+            artNames[side][n] = std::string(kNames[side][n]) + "_art";
+            artTitles[side][n] = titles[side][n] + ": super art";
+            artHelps[side][n] = std::string("The super art Team ") + std::to_string(side + 1) + "'s " + kOrder[n] +
+                                " fighter takes at character select: I, II or III, as listed there for that character.";
+            game.features.push_back({artNames[side][n].c_str(), kTeamPage, artTitles[side][n].c_str(), artHelps[side][n].c_str(), 0,
+                                     {"I", "II", "III"}});
         }
     }
     game.features.push_back({"tag_team", kTeamPage, "Tag team",
@@ -2053,6 +2094,28 @@ void RegisterBattle(Game &game) {
                              "(in a team of three, the third is the first person's again), and in the tag style the partner tags in with "
                              "their left trigger. The labels under the bars say who is on.",
                              0, {"Off", "Co-op vs. computer", "2 vs 2"}});
+}
+
+// Online (port/netplay.h, Port::OnlineEvent): a mode started on both machines before the same frame, with the same dice:
+// 0 Versus (the mode ended, the board started again), 2 the tag team battle; both teams people's, the stage 3rd Strike's
+// own (another game's is drawn by a machine of that game's, which a joining player may not have)
+bool StartBattleOnline(Machine &machine, int mode, uint32_t seed) {
+    if (mode == 0) {
+        EndBattle();
+        machine.Reset();
+        return true;
+    }
+    if (mode != 2) {
+        return false;
+    }
+    SetFeatureForNow("team_opponent", 1);
+    SetFeatureForNow("tag_team", 0);
+    if (FeatureValue("team_stage") > kCharacterCount) {
+        SetFeatureForNow("team_stage", 0);
+    }
+    g_onlineSeed = seed | 1;
+    StartTeam(machine);
+    return true;
 }
 
 // What a replay's row says of a match (Game::matchLabel): the two characters on, by their records

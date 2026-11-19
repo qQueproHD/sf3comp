@@ -62,6 +62,10 @@ Two players on two machines, with **rollback**. Host from the launcher's Online 
 match's code, or find each other in the lobby or the waiting room; nothing needs setting up on either router. The
 match has the host's board settings. Any mix of macOS, Linux, the Steam Deck and Windows can play each other.
 
+In a 3rd Strike match, Esc opens the in-game menu over the running game: the host starts the **tag team battle** (or
+goes back to versus) from its Online match page, and each player picks their own team's fighters and their super arts
+there.
+
 ## Replays
 
 Every match you play, offline or online, is kept as a small file and listed on the in-game menu's Replays page. A
