@@ -1513,7 +1513,15 @@ static std::string SceneName() {
 }
 
 void Port::SaveScene() {
-    shotSaid = SaidOfScene(scene.Save(*machine, PlayerFolder() + "exports/scenes/", SceneName()));
+    // (with run-ahead, the picture shown is the last frame run ahead: the scene is taken there, the frames run again)
+    static std::string said;
+    const auto save = [](Port &port) { said = port.scene.Save(*port.machine, port.PlayerFolder() + "exports/scenes/", SceneName()); };
+    if (ranAhead > 0) {
+        RunAheadAgain(save);
+    } else {
+        save(*this);
+    }
+    shotSaid = SaidOfScene(said);
     shotTicks = kSpeedTicks;
 }
 
@@ -2137,16 +2145,30 @@ std::string Port::LagLine() const {
     return text;
 }
 
-void Port::RunAhead() {
-    const int ahead = FeatureValue("run_ahead");
+void Port::RunAhead(void (*shown)(Port &port)) {
+    ranAhead = 0;
     if (!RunsAhead()) {
         return;
     }
+    memcpy(ranAheadWith, machine->players, sizeof(ranAheadWith));
+    ranAhead = FeatureValue("run_ahead");
+    RunFramesAhead(ranAhead, ranAheadWith, shown);
+}
+
+// The frames ahead run again from the frame (the machine as it was put back, the same controls: the same frames, the
+// same picture), for something to be taken of the frame shown
+void Port::RunAheadAgain(void (*shown)(Port &port)) {
+    RunFramesAhead(ranAhead, ranAheadWith, shown);
+}
+
+void Port::RunFramesAhead(int ahead, const uint16_t *players, void (*shown)(Port &port)) {
     static std::vector<uint8_t> kept;
     KeepState(kept, true);
     const size_t sound = machine->audio.size();
     uint16_t held[Machine::kMaxPlayers];
-    memcpy(held, machine->players, sizeof(held));
+    memcpy(held, players, sizeof(held));
+    uint16_t were[Machine::kMaxPlayers];
+    memcpy(were, machine->players, sizeof(were));
     SetRunningAhead(true);
     for (int n = 0; n < ahead; n++) {
         memcpy(machine->players, held, sizeof(held));
@@ -2158,10 +2180,13 @@ void Port::RunAhead() {
             TheGame().frame(*machine);
         }
     }
+    if (shown) {
+        shown(*this);
+    }
     PutBackState(kept, true);
     SetRunningAhead(false);
     machine->audio.resize(sound);
-    memcpy(machine->players, held, sizeof(held));
+    memcpy(machine->players, were, sizeof(were));
 }
 
 // Online: a round's result, the frame it comes (once: a second's quiet after it before the next, so that a frame run
@@ -2840,14 +2865,19 @@ void Port::RunFrame() {
         memcpy(machine->players, pressed, sizeof(pressed));
         LagMeasure();
         memcpy(machine->players, pressed, sizeof(pressed));
-        RunAhead();
+        // (the scene clip's frame: the picture shown, run-ahead's (taken at the last frame run ahead, before the machine
+        // is put back) or not, and the records it was drawn from)
+        RunAhead(scene.Recording() ? [](Port &port) { port.scene.Frame(*port.machine); } : nullptr);
+    } else {
+        ranAhead = 0;
     }
-    // (the scene clip's frame: the picture shown, run-ahead's or not, and the records it was drawn from; and what a clip
-    // written says, as a screenshot's line)
-    if (scene.Recording()) {
+    if (scene.Recording() && !ranAhead) {
         scene.Frame(*machine);
+    }
+    if (scene.Recording() || menu.recordingClip) {
         menu.recordingClip = scene.Recording();
     }
+    // (what a clip written says, as a screenshot's line)
     if (std::string said; scene.TakeSaid(said)) {
         shotSaid = SaidOfScene(said);
         shotTicks = kSpeedTicks;

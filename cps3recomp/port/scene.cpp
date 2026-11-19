@@ -242,7 +242,7 @@ namespace {
     // buffer, Frame::bands). `tileParts`: the part each tile is in, by its place in `out`
     enum PartIndex { kStageBehind, kOther, kPlayerBack, kPlayerFront, kStageFront, kPanel, kParts };
     void Parts(const native::Frame &f, const native::Video &v, const uint8_t *ss, const native::Rasteriser &shown, const std::vector<uint32_t> &text,
-               std::vector<SceneExport::Layer> &out, std::vector<int> &tileParts, std::vector<int> &tileKinds) {
+               const std::vector<uint32_t> &picture, std::vector<SceneExport::Layer> &out, std::vector<int> &tileParts, std::vector<int> &tileKinds) {
         const size_t count = f.tiles.size();
         tileKinds.assign(count, cps3recomp::kPartOther);
         int lastPlayer[2] = {-1, -1}, lastFighter = -1;
@@ -310,6 +310,23 @@ namespace {
             }
             one.empty = std::none_of(one.pixels.begin(), one.pixels.end(), [](uint32_t pixel) { return pixel >> 24; });
             out.push_back(std::move(one));
+        }
+        // (the player in front where the two are over each other, as the picture has it: the one whose last tile is
+        // later is only a guess, wrong when their objects are drawn among each other's, a throw's say)
+        const size_t first = out.size() - kParts;
+        const std::vector<uint32_t> &back = out[first + kPlayerBack].pixels, &ahead = out[first + kPlayerFront].pixels;
+        int backShown = 0, aheadShown = 0;
+        for (size_t n = 0; n < size && n < picture.size(); n++) {
+            if ((back[n] >> 24) && (ahead[n] >> 24) && (back[n] & 0xFFFFFFu) != (ahead[n] & 0xFFFFFFu)) {
+                backShown += (back[n] & 0xFFFFFFu) == (picture[n] & 0xFFFFFFu);
+                aheadShown += (ahead[n] & 0xFFFFFFu) == (picture[n] & 0xFFFFFFu);
+            }
+        }
+        if (backShown > aheadShown) {
+            std::swap(out[first + kPlayerBack], out[first + kPlayerFront]);
+            for (int &part : tileParts) {
+                part = part == kPlayerBack ? kPlayerFront : part == kPlayerFront ? kPlayerBack : part;
+            }
         }
     }
 
@@ -634,7 +651,7 @@ bool SceneExport::Take(Machine &machine, Scene &scene, int entries) {
     if (game.scenePart && game.fighting && game.fighting()) {
         const std::vector<uint32_t> none;
         const bool hasText = !scene.layers.empty() && scene.layers.back().name == "text";
-        Parts(f, *parts.video, parts.ss, *parts.raster, hasText ? scene.layers.back().pixels : none, scene.parts, tileParts, tileKinds);
+        Parts(f, *parts.video, parts.ss, *parts.raster, hasText ? scene.layers.back().pixels : none, scene.picture, scene.parts, tileParts, tileKinds);
     }
     if (entries != kNoEntries) {
         Entries(f, *parts.video, layerOf, scene.layers, scene.parts, tileParts, tileKinds, entries == kEntryPictures, scene.entries, scene.entryMap);

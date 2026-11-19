@@ -10,8 +10,9 @@
 # on its backdrop, must make its picture again pixel for pixel, a clip's every frame too (scenecheck.py); in a fight,
 # its parts too, and each object by itself must be its layer where it is in front. And a training session (made-up
 # characters chosen, hit boxes and the frame meter on): its scenes' training overlays and hit boxes, each with its
-# player. Prints what it compared and "checkscene: all the same", or what is wrong. Exit 0 when all is well. About
-# six minutes.
+# player. And with run-ahead (two frames, widescreen with its walls), headless and through the GPU path: the picture
+# shown is the last frame run ahead, the scene taken of that frame. Prints what it compared and "checkscene: all the
+# same", or what is wrong. Exit 0 when all is well. About eight minutes.
 #
 #   games/sfiii3/checkscene.sh ROM [BUILD]     (ROM: the sfiii3nr1 zip, with sfiiin's beside it; BUILD: build/sfiii3)
 ROM=${1:?usage: checkscene.sh ROM [BUILD]}
@@ -42,10 +43,12 @@ run guest-wide ",stage=22,widescreen" headless &
 # (a training session: its fight from about frame 1100; the keys are the port's ticks, which run more than a frame
 # each while the session's start is made)
 run training ",hit_boxes,frame_meter" headless "30:ctraining_start,400:cscene_save,500:cscene_clip,800:cscene_save" &
+run ahead ",widescreen,widescreen_walls,run_ahead=2" headless &
 wait
 # (the window's GPU path: one at a time, as the GPU allows)
 run guest-gpu ",stage=22" gpu
-for name in own guest own-wide guest-wide guest-gpu training; do
+run ahead-gpu ",widescreen,widescreen_walls,run_ahead=2" gpu
+for name in own guest own-wide guest-wide guest-gpu training ahead ahead-gpu; do
     grep -h "kept whole\|scene:.*differently" "$OUT/$name/log.txt" | sed "s/^/checkscene: $name: /"
     python3 "$HERE/scenecheck.py" "$OUT/$name/exports/scenes" | sed "s/^scenecheck:/checkscene: $name:/" | grep -v "all the same$"
     [ "${PIPESTATUS[0]}" = 0 ] || status=1
