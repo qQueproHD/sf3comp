@@ -5,6 +5,10 @@
 - **The input lag readout in a smaller font** (recomp-common's `kSmallFont`), so it covers less of the picture.
 - recomp-common synced to 641c65d (the smaller font, Windows requests with WinHTTP, the arcade monitor's modes header,
   the menu's compact layout and Reset all options' question).
+- **Online Tag team battle: both players choose while the game is paused**: the host's Esc menu now pauses the game
+  for both players and opens the other player's, so each chooses their fighters and super arts there. The other
+  player then says **Ready**, and the host's **Start Tag team battle** waits until they have (changing a fighter
+  takes Ready back). The other player no longer has to choose their team before the host starts.
 
 ## 0.2.0-beta.2
 
