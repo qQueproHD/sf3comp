@@ -88,6 +88,8 @@ struct Online {
     // Host and Invite add as `delay_argument N` when the player has chosen one (the game's own default otherwise); the
     // game tells the one joining. nullptr: no such choice.
     const char *delay_argument = nullptr; // "--net-delay"
+    // ... or each player's own (delay_own): Join adds it too, and the row says so (the game tells the others its own)
+    bool delay_own = false;
     // Inviting a player from the waiting room (Collection::room): Host with `invite_argument THEIRS:MINE` (the two
     // players' ids) and `invite_name_argument NAME` (theirs), and the player's own name with `name_argument`; the match
     // isn't listed. nullptr: no Invite.
@@ -182,6 +184,10 @@ struct Description {
     const char *file_not_set_up = "";         // what --play says when none is chosen
     SDL_DialogFileFilter file_filter = {"Game file", "*"};
     const char *file_key = "file";            // its key in launcher.ini, under [game]
+    // Android: the game file needs files beside it (a disc image's .cue and its tracks), so the system's picker takes
+    // several, all copied into the app's folder; the game file is the first of them with an extension file_filter
+    // names (elsewhere the file is read where it is, beside its own)
+    bool file_many = false;
     std::function<FileCheck(const std::string &path)> check;
     bool check_on_thread = false;             // for a check that reads a large file
     // Optional: whether a feature is offered with the game file chosen (one that only some releases of the game

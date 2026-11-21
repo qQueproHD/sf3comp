@@ -1176,13 +1176,22 @@ void Port::ShownOver(std::vector<uint32_t> &pixels, std::vector<SDL_Rect> *panel
     const int across = ShownWidth();
     DrawHud(pixels.data(), across, Video::kHeight, panels);
     // A line at the bottom, in the middle (`up` lines higher)
-    auto status = [&](const char *text, int up) {
+    // (small: the smaller font, kSmallFont, in a lower box at the bottom of the line's place)
+    auto status = [&](const char *text, int up, bool small = false) {
         if (!notices) {
             return; // (a video's picture: Port::VideoFrame)
         }
         const recomp::text::Canvas canvas{pixels.data(), across, Video::kHeight};
-        const float width = recomp::text::TextWidth(text, 1);
+        const float width = small ? recomp::text::SmallTextWidth(text, 1) - 1 : recomp::text::TextWidth(text, 1);
         const float x = (across - width) / 2, y = static_cast<float>(Video::kHeight - 11 - up);
+        if (small) {
+            canvas.Fill(x - 2, y + 3, width + 4, 7, {20, 22, 30, 220});
+            canvas.SmallText(x, y + 4, 1, {255, 255, 255, 255}, text);
+            if (panels) {
+                panels->push_back({static_cast<int>(x) - 2, static_cast<int>(y) + 3, static_cast<int>(width) + 5, 7});
+            }
+            return;
+        }
         canvas.Fill(x - 3, y - 2, width + 6, 12, {20, 22, 30, 220});
         canvas.Text(x, y, 1, 0, {255, 255, 255, 255}, text);
         if (panels) {
@@ -1213,7 +1222,7 @@ void Port::ShownOver(std::vector<uint32_t> &pixels, std::vector<SDL_Rect> *panel
     // above, until this side's player has pressed Start, that it lets them in)
     int said = told ? 1 : 0;
     if (const std::string line = LagLine(); !line.empty()) {
-        status(line.c_str(), said++ * 14);
+        status(line.c_str(), said++ * 14, true);
     }
     for (int which = 0; which < 2; which++) {
         const std::string line = ReplayLine(which);
