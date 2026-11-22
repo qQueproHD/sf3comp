@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **The Discord link at the top of the launcher's Online page** ("Join us on Discord"), as cps2recomp has it.
+- recomp-common synced to 1246257 (the Online page's new order: matches and hosting first, you in the waiting room,
+  name and code at the bottom, 3-second updates; the community link; the Features page's filters worked out once a
+  frame).
 - **The input lag readout in a smaller font** (recomp-common's `kSmallFont`), so it covers less of the picture.
 - recomp-common synced to 641c65d (the smaller font, Windows requests with WinHTTP, the arcade monitor's modes header,
   the menu's compact layout and Reset all options' question).
