@@ -430,12 +430,13 @@ struct Port {
     // Esc in a match: the match's own menu (Menu::OpenOnline), drawn over the game, which goes on: the host's modes to
     // start (OnlineCommand), this player's own picks for them (onlinePicks, sent as events), leaving. Watching, or a
     // host waiting, Esc asks only whether to leave (`leaving`, answered by LeaveQuestion)
-    void OpenOnlineMenu();
+    void OpenOnlineMenu(bool keep = false);
     void OnlineCommand(size_t index);
     void LeaveQuestion(unsigned pressed);
     std::vector<int> onlineModes;           // (the menu's commands' modes, in its order)
     std::vector<std::string> onlineRows;    // (the menu's features' rows: the game's features they stand for)
     std::map<std::string, int> onlinePicks; // (this player's picks as chosen, before their events have run)
+    int onlineTeamSize = -1;                // (team_size value the open online menu was built with)
     void HearEvents();
     std::string onlineShot; // (tests, --menu online: the picture with the match's menu, written once the frame is drawn)
     void Matched();

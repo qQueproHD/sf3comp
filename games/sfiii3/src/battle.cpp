@@ -1694,12 +1694,20 @@ void ModesFrame(Machine &m) {
         StageBehindFrame(m);
     }
     if (b.over) {
-        // (the battle won or the run over: said for a while, then the mode ends and the menu opens on the page it was
-        // started from, for another; the board goes on as it is underneath)
+        // (the battle won or the run over: said for a while, nobody fighting on; then the mode ends and the menu opens
+        // on the page it was started from, for another, the board going on as it is underneath. Online the board
+        // starts again instead, as Back to Versus does, the same frame on both sides: the 2P match underneath would
+        // go on to a round 2 with the fighters last on, and its winner into arcade mode past the opponent select)
+        for (int p = 0; p < Machine::kMaxPlayers; p++) {
+            m.players[p] = 0;
+        }
         if (b.frames - b.overAt > kShownFor + 60) {
             b.mode = kNone;
             StageBehind(-1);
             SetHud({});
+            if (b.online) {
+                m.Reset();
+            }
             AskMenu();
         }
         return;
