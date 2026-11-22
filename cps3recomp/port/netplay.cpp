@@ -132,7 +132,7 @@ namespace {
         if (category == "Cheats") {
             return Share::Off; // (a fair match: no damage for the host's player, say, is not)
         }
-        if (category == "Display" || category == "Sound" || category == "Online" || category == "Replays") {
+        if (category == "Display" || category == "Arcade monitor" || category == "Sound" || category == "Online" || category == "Replays") {
             return Share::Own; // (how each player sees and hears it, and what their screen says of the match)
         }
         if (feature.flags & kFeatureOwn) {

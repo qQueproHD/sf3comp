@@ -15,6 +15,7 @@
 #include "dreamcast.h"
 #include "i18n.h"
 #include "../runtime/recomp.h"
+#include "../recomp-common/arcade_screen.h"
 #include "../recomp-common/folders.h"
 #include "../recomp-common/proxy.h"
 #include "../recomp-common/settings.h"
@@ -289,34 +290,42 @@ void RegisterPortFeatures() {
                                   "large as the screen, in its place, for what needs the game in a window: HDR made by the "
                                   "graphics card (NVIDIA RTX HDR), overlays and recorders, switching to other windows at once. "
                                   "The launcher's Full screen, F11 and Alt+Enter go to whichever is chosen. Not with the Arcade "
-                                  "monitor's 384 x 224, which always takes the screen over.",
+                                  "monitor's full screen resolutions, which always take the screen over.",
                                   0, {"Full screen", "Borderless window"}});
 #endif
     TheGame().features.push_back({"window_size", "Display", "Window size",
                                   "How large the window opens, in times the board's 224 lines (it can be made any size by "
                                   "dragging its edges; full screen is on the launcher's first page and F11).",
                                   0, {"3x", "2x", "4x", "5x", "6x"}});
-    // (crt_*: an arcade monitor (issue #15). Resolution and Screen: frontend_sdl.cpp, set on the launcher
-    // (kFeatureLauncherOnly), so a mode the monitor may not take is never chosen in the menu while playing; Compact
-    // menu: Port::CompactMenu, recomp-common's Menu::SetCompact)
-    TheGame().features.push_back({"crt_resolution", "Arcade monitor", "Full screen resolution",
-                                  "Off: full screen at the screen's own resolution, the picture fitted as the Display rows say. "
-                                  "384 x 224: the screen switched to the board's own resolution (an arcade monitor's modeline, "
-                                  "made with CRT Emudriver or a custom resolution), the picture filling it pixel for pixel, the "
-                                  "menu compact. Only that exact mode is used, at the refresh nearest the board's 59.6 Hz: if "
-                                  "the screen doesn't list it, full screen stays at the screen's own. Turn Widescreen off with "
-                                  "it. Set on the launcher; the in-game menu can only turn it off.",
-                                  kFeatureLauncherOnly, {"Off", "384 x 224"}});
-    TheGame().features.push_back({"crt_screen", "Arcade monitor", "Screen",
-                                  "Which screen the game opens on and goes full screen on, where there are several: the main "
-                                  "one or another, in the order the system lists them. One that isn't connected: the main. "
-                                  "Set on the launcher; the in-game menu can only put it back to the main one.",
-                                  kFeatureLauncherOnly, {"Main", "Second", "Third", "Fourth"}});
-    TheGame().features.push_back({"crt_compact_menu", "Arcade monitor", "Compact menu",
-                                  "The in-game menu in small letters with its rows close together, as suits a screen of few "
-                                  "lines (a small window, an arcade monitor): a page's rows all shown at once, none running "
-                                  "into the next. Off: compact only in full screen at 384 x 224.",
-                                  0});
+    // (crt_*: an arcade monitor (issue #15), recomp-common's arcade_sdl.h and arcade_screen.h (the same as cps2recomp's).
+    // Resolution, Screen, Make the mode at the board's rate and Monitor: frontend_sdl.cpp's ArcadeScreen, set on the
+    // launcher (kFeatureLauncherOnly), so a mode the monitor may not take is never chosen in the menu while playing;
+    // Keep the board's pace: frontend_sdl.cpp's pacing; Compact menu: Port::CompactMenu, recomp-common's Menu::SetCompact.
+    // The descriptions are recomp-common's, kept here as the features keep pointers to them)
+    {
+        const recomp::sdl::ArcadeBoard board = ArcadeBoardPicture();
+        static const std::string resolution = recomp::sdl::ArcadeDescription(board) + " Turn Widescreen off with it.";
+        static const std::string boardName = recomp::sdl::ArcadeBoardName(board);
+        static const std::string switchres = recomp::sdl::SwitchresDescription(board);
+        static const std::string boardPace = recomp::sdl::BoardPaceDescription(board);
+        // (the values kept in settings.ini mean what they did: 0 off, 1 the board's 384 x 224; 2, Super resolution, is new)
+        TheGame().features.push_back({"crt_resolution", "Arcade monitor", "Full screen resolution", resolution.c_str(),
+                                      kFeatureLauncherOnly, {"Off", boardName.c_str(), "Super resolution"}});
+        TheGame().features.push_back({"crt_screen", "Arcade monitor", "Screen", recomp::sdl::kScreenDescription, kFeatureLauncherOnly,
+                                      {"Main", "Second", "Third", "Fourth"}});
+        // (crt_switchres, crt_monitor: only in a build with Switchres, Windows. Set on the launcher, as the resolution
+        // is: the monitor's ranges decide what modes it makes)
+        if (recomp::sdl::SwitchresBuilt()) {
+            TheGame().features.push_back({"crt_switchres", "Arcade monitor", "Make the mode at the board's rate", switchres.c_str(),
+                                          kFeatureLauncherOnly});
+            TheGame().features.push_back({"crt_monitor", "Arcade monitor", "Monitor", recomp::sdl::kMonitorDescription, kFeatureLauncherOnly,
+                                          std::vector<const char *>(std::begin(recomp::sdl::kMonitorNames), std::end(recomp::sdl::kMonitorNames))});
+        }
+        // (crt_board_pace: frontend_sdl.cpp. Off, the default: in an arcade mode the frames are paced by the screen's
+        // refreshes, as a mode the system lists is seldom exactly the board's rate; on: by the board's clock, as in a window)
+        TheGame().features.push_back({"crt_board_pace", "Arcade monitor", "Keep the board's pace", boardPace.c_str(), 0});
+        TheGame().features.push_back({"crt_compact_menu", "Arcade monitor", "Compact menu", recomp::sdl::kCompactDescription, 0});
+    }
     // (custom_soundtrack: soundtrack.h; for a game whose sources follow its music driver: runtime/soundtrack.h)
     if (TheGame().songCount) {
         static std::string about; // (the feature keeps a pointer to it)
@@ -348,8 +357,20 @@ Bezel DisplayBezel() {
 bool BorderlessFullScreen() {
     return FeatureValue("display_borderless") == 1 && !ArcadeResolution();
 }
+recomp::sdl::ArcadeBoard ArcadeBoardPicture() {
+    return {Video::kWidth, Video::kHeight, Machine::kFramesPerSecond};
+}
+recomp::sdl::ArcadeChoices ArcadeChosen() {
+    recomp::sdl::ArcadeChoices choices;
+    choices.mode = static_cast<recomp::sdl::ArcadeMode>(std::clamp(FeatureValue("crt_resolution"), 0, 2));
+    choices.screen = DisplayScreen();
+    choices.switchres = recomp::sdl::SwitchresBuilt() && FeatureValue("crt_switchres") != 0;
+    choices.monitor = std::clamp(FeatureValue("crt_monitor"), 0, recomp::sdl::kMonitorPresetCount - 1);
+    choices.boardPace = FeatureValue("crt_board_pace") != 0;
+    return choices;
+}
 bool ArcadeResolution() {
-    return FeatureValue("crt_resolution") == 1;
+    return FeatureValue("crt_resolution") != 0;
 }
 int DisplayScreen() {
     return std::clamp(FeatureValue("crt_screen"), 0, 3);

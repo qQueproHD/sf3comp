@@ -119,7 +119,7 @@ set(PORT_SOURCES
     ${CR}/port/replay.cpp ${CR}/port/menu.cpp ${CR}/port/hud.cpp ${CR}/port/touch.cpp ${CR}/port/netplay.cpp
     ${CR}/port/soundtrack.cpp ${CR}/port/decoders.cpp ${CR}/port/dreamcast.cpp ${CR}/port/native_gpu.cpp
     ${CR}/recomp-common/launcher/src/online.cpp ${CR}/recomp-common/launcher/src/run_program.cpp
-    ${CR}/recomp-common/menu.cpp ${CR}/recomp-common/settings.cpp
+    ${CR}/recomp-common/menu.cpp ${CR}/recomp-common/settings.cpp ${CR}/recomp-common/arcade_screen.cpp
     ${CR}/runtime/game.cpp ${CR}/runtime/system.cpp ${CR}/runtime/soundtrack.cpp ${CR}/runtime/spare.cpp ${CR}/fight/frames.cpp ${CR}/fight/training.cpp ${CR}/fight/session.cpp ${GAME_SOURCES})
 # The video recording's encoders (port/video_record.h), other projects' code compiled as it is: minih264 (H.264) and
 # minimp4 (the MP4 file), CC0, in cps3recomp/third_party/ and compiled by port/encoders*.c; and FAAC 2.2 (AAC),
@@ -163,6 +163,10 @@ if (SHARED_DIR)
     target_include_directories(${GAME} PRIVATE "${CMAKE_SOURCE_DIR}/games/${SHARED_DIR}")
 endif ()
 target_link_libraries(${GAME} PRIVATE cps3runtime cps3machine SDL3::SDL3 video_encoders)
+# (Switchres, GPL-2.0-or-later, downloaded and linked in on Windows: the Arcade monitor's modes made at the board's
+# exact rate, recomp-common's arcade_screen.h)
+include(${CR}/recomp-common/switchres.cmake)
+recomp_switchres(${GAME})
 if (APPLE)
     target_link_libraries(${GAME} PRIVATE "-framework AppKit")
 endif ()
