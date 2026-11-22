@@ -469,7 +469,7 @@ namespace {
             b.preparing = !getenv("SFIII3_TAG_NO_PREPARE"); // (debugging aid: the fights made only as they are needed)
         }
         if (getenv("SFIII3_BATTLE_LOG")) { // (debugging aid; checkmodes.sh reads it)
-            fprintf(stderr, "battle: teams %s, %s, %s against %s, %s, %s\n", kCharacters[b.member[0][0]], kCharacters[b.member[0][1]],
+            fprintf(stderr, "battle: teams of %d: %s, %s, %s against %s, %s, %s\n", b.size, kCharacters[b.member[0][0]], kCharacters[b.member[0][1]],
                     kCharacters[b.member[0][2]], kCharacters[b.member[1][0]], kCharacters[b.member[1][1]], kCharacters[b.member[1][2]]);
         }
     }
@@ -1706,6 +1706,9 @@ void ModesFrame(Machine &m) {
             StageBehind(-1);
             SetHud({});
             if (b.online) {
+                if (getenv("SFIII3_BATTLE_LOG")) { // (debugging aid)
+                    fprintf(stderr, "battle: over online at battle frame %u, the board starts again\n", b.frames);
+                }
                 m.Reset();
             }
             AskMenu();
