@@ -469,7 +469,7 @@ namespace {
             b.preparing = !getenv("SFIII3_TAG_NO_PREPARE"); // (debugging aid: the fights made only as they are needed)
         }
         if (getenv("SFIII3_BATTLE_LOG")) { // (debugging aid; checkmodes.sh reads it)
-            fprintf(stderr, "battle: teams %s, %s, %s against %s, %s, %s\n", kCharacters[b.member[0][0]], kCharacters[b.member[0][1]],
+            fprintf(stderr, "battle: teams of %d: %s, %s, %s against %s, %s, %s\n", b.size, kCharacters[b.member[0][0]], kCharacters[b.member[0][1]],
                     kCharacters[b.member[0][2]], kCharacters[b.member[1][0]], kCharacters[b.member[1][1]], kCharacters[b.member[1][2]]);
         }
     }
@@ -1694,12 +1694,23 @@ void ModesFrame(Machine &m) {
         StageBehindFrame(m);
     }
     if (b.over) {
-        // (the battle won or the run over: said for a while, then the mode ends and the menu opens on the page it was
-        // started from, for another; the board goes on as it is underneath)
+        // (the battle won or the run over: said for a while, nobody fighting on; then the mode ends and the menu opens
+        // on the page it was started from, for another, the board going on as it is underneath. Online the board
+        // starts again instead, as Back to Versus does, the same frame on both sides: the 2P match underneath would
+        // go on to a round 2 with the fighters last on, and its winner into arcade mode past the opponent select)
+        for (int p = 0; p < Machine::kMaxPlayers; p++) {
+            m.players[p] = 0;
+        }
         if (b.frames - b.overAt > kShownFor + 60) {
             b.mode = kNone;
             StageBehind(-1);
             SetHud({});
+            if (b.online) {
+                if (getenv("SFIII3_BATTLE_LOG")) { // (debugging aid)
+                    fprintf(stderr, "battle: over online at battle frame %u, the board starts again\n", b.frames);
+                }
+                m.Reset();
+            }
             AskMenu();
         }
         return;

@@ -39,7 +39,7 @@ public:
         std::string leave, leaveDescription;
     };
     static constexpr const char *kOnlinePage = "Online match";
-    void OpenOnline(Online online);
+    void OpenOnline(Online online, bool keep = false);
     bool OnlineOpen() const {
         return m_online && m_onlineMenu.IsOpen();
     }

@@ -9,6 +9,10 @@
   for both players and opens the other player's, so each chooses their fighters and super arts there. The other
   player then says **Ready**, and the host's **Start Tag team battle** waits until they have (changing a fighter
   takes Ready back). The other player no longer has to choose their team before the host starts.
+- **Online Tag team battle: 2 vs 2 or 3 vs 3 from the match's menu**: the host's Online match page has **Tag team:
+  fighters**, which both players see change (and which takes the other player's Ready back). When the battle is
+  won, the board now starts again for both, as Back to Versus does: it no longer went on into a round 2 with the
+  fighters last on, and its winner into arcade mode past the first opponent select (#56).
 
 ## 0.2.0-beta.2
 

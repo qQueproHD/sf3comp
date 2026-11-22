@@ -20,7 +20,7 @@ namespace {
     enum { kCoin = 1, kStart2, kTest, kLeave };
 } // namespace
 
-void Menu::OpenOnline(Online online) {
+void Menu::OpenOnline(Online online, bool keep) {
     m_menu.Close();
     recomp::MenuConfig config;
     config.groups = {{{recomp::MenuRow::Page, 0, kOnlinePage}},
@@ -35,6 +35,10 @@ void Menu::OpenOnline(Online online) {
     config.setMuted = [this](bool to) { muted = to; };
     config.confirmName = "Enter or A";
     config.closeName = "Esc";
+    if (keep && m_online && m_onlineMenu.IsOpen()) {
+        m_onlineMenu.Configure(std::move(config));
+        return;
+    }
     m_onlineMenu = recomp::Menu();
     m_onlineMenu.SetCompact(true); // (drawn on the game's own picture, at the board's size)
     m_onlineMenu.Configure(std::move(config));

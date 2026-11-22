@@ -2436,9 +2436,9 @@ namespace {
         }
         return nullptr;
     }
-    // A player's own rows on the Tag team battle page (player 1's the host's, player 2's the other side's)
+    // A player's own rows on the Tag team battle page (player 1's the host's, plus team_size; player 2's the other side's)
     bool OwnRow(int player, const std::string &row) {
-        return row.rfind(player == 0 ? "team_1_" : "team_2_", 0) == 0;
+        return row.rfind(player == 0 ? "team_1_" : "team_2_", 0) == 0 || (player == 0 && row == "team_size");
     }
     bool TagTeamOnline() {
         return TheGame().startOnline && FindFeature("team_size") && FindFeature("team_1_1");
@@ -2559,15 +2559,20 @@ void Port::OnlineEvent(int player, const std::string &text, uint64_t at) {
                 }
                 onlinePickLog[name][at] = value;
                 SetFeatureForNow(feature->name, value);
-                if (player == 1) {
-                    onlineReadyLog[at] = 0; // (a fighter changed: not ready until said again)
+                if (player == 1 || name == "team_size") {
+                    // (a fighter changed, or the host's team size, which changes the other player's team: not ready
+                    // until said again)
+                    onlineReadyLog[at] = 0;
+                    if (player == 0 && net && net->Local() == 1) {
+                        onlineReadyMine = -1; // (the log says it now)
+                    }
                 }
             }
         }
     }
 }
 
-void Port::OpenOnlineMenu() {
+void Port::OpenOnlineMenu(bool keep) {
     leaving = false;
     if (!net || connecting) {
         leaving = true; // (a host waiting: only Esc's question, Confirm leaves, Back stays)
@@ -2578,17 +2583,27 @@ void Port::OpenOnlineMenu() {
     onlineModes.clear();
     onlineRows.clear();
     if (TagTeamOnline()) {
+        const auto sizeIt = onlinePicks.find("team_size");
+        const int sizeVal = sizeIt != onlinePicks.end() ? sizeIt->second : FeatureValue("team_size");
+        onlineTeamSize = sizeVal;
         if (net->Hosting()) {
             // (the host's: the mode, a command that starts it for both, and Versus that ends it)
             onlineModes = {2, 0};
             online.commands.push_back({Menu::kOnlinePage, "Start Tag team battle",
                                        "Starts the tag team battle for both players once the other player has said Ready (until "
-                                       "then it waits, the game paused), with your settings of its page from before the match (style, "
-                                       "fighters, stage), and each player's own fighters and super arts below."});
+                                       "then it waits, the game paused), with your style and stage from before the match, and the "
+                                       "team size, fighters and super arts below."});
             online.commands.push_back({Menu::kOnlinePage, "Back to Versus",
                                        "Ends the mode for both players: the board starts again, and each presses Start to come back in."});
+            if (const Feature *found = FindFeature("team_size")) {
+                onlineRows.push_back("team_size");
+                online.features.push_back(
+                    {Menu::kOnlinePage, "Tag team: fighters",
+                     "How many fighters each team has in the tag team battle: 2 vs 2 or 3 vs 3.",
+                     {found->choices.begin(), found->choices.end()}});
+            }
         }
-        const int size = FeatureValue("team_size") == 1 ? 3 : 2;
+        const int size = sizeVal == 1 ? 3 : 2;
         static const char *const kOrder[3] = {"first", "second", "third"};
         for (int n = 0; n < size; n++) {
             const std::string row = "team_" + std::to_string(me + 1) + "_" + std::to_string(n + 1);
@@ -2651,7 +2666,7 @@ void Port::OpenOnlineMenu() {
     online.leave = net->Hosting() && hostedFromMenu ? "Leave the match (play alone)" : "Leave the match";
     online.leaveDescription = net->Hosting() && hostedFromMenu ? "Ends the match for both: your own game comes back, still hosted."
                                                                : "Ends the match for both players.";
-    menu.OpenOnline(std::move(online));
+    menu.OpenOnline(std::move(online), keep);
 }
 
 void Port::OnlineCommand(size_t index) {
@@ -2711,13 +2726,24 @@ void Port::HearEvents() {
                 said = who + (value == 0 ? " went back to Versus" : std::string(" started ") + kOnlineModes[value]);
             } else if (const Feature *feature = FindFeature(row); feature && OwnRow(player, row) && value >= 0 &&
                                                                    value < static_cast<int>(feature->choices.size())) {
-                const bool art = row.size() > 4 && row.compare(row.size() - 4, 4, "_art") == 0;
-                said = who + " picked " + (art ? "super art " : "") + feature->choices[value] + " (Tag team)";
+                if (row == "team_size") {
+                    said = who + " set Tag team to " + feature->choices[value] + " vs " + feature->choices[value];
+                } else {
+                    const bool art = row.size() > 4 && row.compare(row.size() - 4, 4, "_art") == 0;
+                    said = who + " picked " + (art ? "super art " : "") + feature->choices[value] + " (Tag team)";
+                }
             }
             if (!said.empty()) {
                 fprintf(stderr, "online: %s\n", said.c_str());
                 chat.push_back({said, tick + kChatTicks, player == net->Local()});
             }
+        }
+    }
+    if (menu.OnlineOpen() && TagTeamOnline()) {
+        const auto sizeIt = onlinePicks.find("team_size");
+        const int sizeVal = sizeIt != onlinePicks.end() ? sizeIt->second : FeatureValue("team_size");
+        if (sizeVal != onlineTeamSize) {
+            OpenOnlineMenu(true);
         }
     }
 }
@@ -2818,6 +2844,7 @@ void Port::Matched() {
     onlineSetupSent = false;
     onlinePendingMode = -1;
     onlineReadyMine = -1;
+    onlineTeamSize = -1;
     frame = 0; // (the match's frames count from its start, on both sides)
     ReplayStop(false);
     ReplayEnd();
