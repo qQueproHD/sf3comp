@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- SF3comp fork icon: an original design (brush ring, three bars, lightning), no game art. -->
+  <defs>
+    <radialGradient id="bg" cx="38%" cy="30%" r="85%">
+      <stop offset="0" stop-color="#b3202a"/>
+      <stop offset="0.55" stop-color="#5e0f1d"/>
+      <stop offset="1" stop-color="#1a0710"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffe7a3"/>
+      <stop offset="0.5" stop-color="#f2b53c"/>
+      <stop offset="1" stop-color="#b9741c"/>
+    </linearGradient>
+    <linearGradient id="bolt" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e9fbff"/>
+      <stop offset="1" stop-color="#4fd2ff"/>
+    </linearGradient>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="186" fill="url(#bg)"/>
+  <!-- brush ring, open at the upper right -->
+  <path d="M 700 262 A 300 300 0 1 0 792 470" fill="none" stroke="#f4e9d8" stroke-opacity="0.92" stroke-width="46" stroke-linecap="round"/>
+  <path d="M 668 240 A 318 318 0 0 0 330 262" fill="none" stroke="#f4e9d8" stroke-opacity="0.55" stroke-width="14" stroke-linecap="round"/>
+  <path d="M 792 470 A 300 300 0 0 1 770 560" fill="none" stroke="#f4e9d8" stroke-opacity="0.6" stroke-width="22" stroke-linecap="round"/>
+  <!-- three bars, slanted -->
+  <g transform="translate(512 515) skewX(-12)" fill="url(#gold)" stroke="#3a0a10" stroke-width="10" stroke-linejoin="round">
+    <path d="M -186 -150 h 92 l -14 24 v 252 l 14 24 h -92 l 14 -24 v -252 z"/>
+    <path d="M -46 -150 h 92 l -14 24 v 252 l 14 24 h -92 l 14 -24 v -252 z"/>
+    <path d="M 94 -150 h 92 l -14 24 v 252 l 14 24 h -92 l 14 -24 v -252 z"/>
+  </g>
+  <!-- lightning across the bars -->
+  <path d="M 268 676 L 470 498 L 448 548 L 640 392 L 612 452 L 772 342 L 560 560 L 586 504 L 404 640 L 428 590 Z"
+        fill="url(#bolt)" stroke="#0b3a52" stroke-width="8" stroke-linejoin="round"/>
+</svg>
