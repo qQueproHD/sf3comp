@@ -110,8 +110,9 @@ playable by either player.
 - **Native picture and sound**: the game's drawing and sound code hands its frames and voices to the port's own
   renderer and mixer; the board's video and sound chips are modelled only as the reference the checks compare
   against. Sharp or smooth scaling, 4:3 or square pixels, RetroArch shaders, and a zoom that follows the fighters.
-  An arcade monitor (CRT Emudriver) gets the board's own 384 x 224 in full screen, on the screen you choose, with a
-  compact menu that suits its 224 lines: set up on the launcher's Features page.
+  An arcade monitor (CRT Emudriver) gets the board's own 384 x 224 in full screen, or a super resolution such as
+  2560 x 224, on the screen you choose, synced to the screen with a frame delay, and on Windows made at the board's
+  exact 59.60 Hz with Switchres, as GroovyMAME does: set up on the launcher's Features page.
 - **An in-game menu** (Esc or F1; on a gamepad the left stick's click, or Start and Select together): save states,
   speed, the cheats, the board's own settings and test menu, every feature. Pure plays exactly as the board does;
   Enhanced (the default) adds free play, arcade timing, integer scaling and, in widescreen, invisible walls.
@@ -222,6 +223,8 @@ from the game, ever, and never a key). Security reports go by [SECURITY.md](SECU
   arelkair (GPL-3.0-or-later), in `cps3recomp/recomp-common/launcher/`.
 - The programs use SDL 3 (zlib), Dear ImGui (MIT), the Inter font (SIL OFL 1.1) and librashader (MPL-2.0 or
   GPL-3.0); the release archives carry their licenses.
+- The Windows programs make arcade-monitor modes with [Switchres](https://github.com/antonioginer/switchres) (Chris
+  Kennedy, Antonio Giner, Alexandre Wodarczyk, Gil Delescluse; GPL-2.0-or-later), downloaded at build time.
 
 The repository holds no game data and nothing derived from it.
 

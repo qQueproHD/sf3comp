@@ -11,6 +11,7 @@
 #include "touch.h"
 
 #include "../runtime/game.h"
+#include "../recomp-common/arcade_screen.h"
 #include "../recomp-common/gamepads.h"
 #include "../recomp-common/menu_sdl.h"
 
@@ -52,64 +53,19 @@ namespace {
 
     constexpr int kDead = 16000; // how far a stick or a trigger must go to count
 
+    // The Arcade monitor page (issue #15; recomp-common's arcade_sdl.h and arcade_screen.h, as cps2recomp's): full
+    // screen in the board's 384 x 224 or a super resolution, at the refresh nearest the board's or made at exactly it
+    // with Switchres (Windows), on the chosen screen; the frames paced by the screen's refreshes there unless Keep the
+    // board's pace is on. The desktop's mode as it was at the end (Close)
+    recomp::sdl::ArcadeScreen &Arcade() {
+        static recomp::sdl::ArcadeScreen arcade(ArcadeBoardPicture());
+        return arcade;
+    }
 #ifndef __ANDROID__ // (a phone: its one screen, full)
-    // The Display page's screen (DisplayScreen): the main display, or the others in the order SDL lists them; the main
-    // one where the one chosen is not connected (issue #15)
+    // The Arcade monitor page's screen (DisplayScreen): the main display, or the others in the order SDL lists them;
+    // the main one where the one chosen is not connected
     SDL_DisplayID ChosenDisplay() {
-        const SDL_DisplayID primary = SDL_GetPrimaryDisplay();
-        SDL_DisplayID chosen = primary;
-        int count = 0, other = 0;
-        SDL_DisplayID *all = SDL_GetDisplays(&count);
-        for (int i = 0; all && i < count; i++) {
-            if (all[i] != primary && ++other == DisplayScreen()) {
-                chosen = all[i];
-            }
-        }
-        SDL_free(all);
-        return chosen;
-    }
-
-    // The screen's mode of exactly the board's 384 x 224 (an arcade monitor's, from CRT Emudriver or a custom
-    // resolution), at the refresh nearest the board's 59.6 Hz and no further than 5 Hz from it; false: it has none.
-    // Never another size or rate: a monitor of 15 kHz can be harmed by a mode it cannot take (issue #15)
-    bool ArcadeMode(SDL_DisplayID display, SDL_DisplayMode &found) {
-        int count = 0;
-        SDL_DisplayMode **modes = SDL_GetFullscreenDisplayModes(display, &count);
-        bool any = false;
-        for (int i = 0; modes && i < count; i++) {
-            const SDL_DisplayMode &mode = *modes[i];
-            const float density = mode.pixel_density > 0 ? mode.pixel_density : 1.0f;
-            const bool size = std::lround(mode.w * density) == Video::kWidth && std::lround(mode.h * density) == Video::kHeight;
-            const float off = std::fabs(mode.refresh_rate - static_cast<float>(Machine::kFramesPerSecond));
-            if (size && off <= 5.0f && (!any || off < std::fabs(found.refresh_rate - static_cast<float>(Machine::kFramesPerSecond)))) {
-                found = mode;
-                any = true;
-            }
-        }
-        SDL_free(modes);
-        return any;
-    }
-
-    // The window's full screen as the Arcade monitor page says (ArcadeResolution): the board's 384 x 224 on the chosen
-    // screen where it has that mode; else the desktop's own. Kept by the window for F11 too
-    void SetFullscreenMode(SDL_Window *window) {
-        SDL_DisplayMode mode;
-        if (ArcadeResolution() && ArcadeMode(ChosenDisplay(), mode)) {
-            if (!SDL_SetWindowFullscreenMode(window, &mode)) {
-                fprintf(stderr, "full screen %dx%d at %.2f Hz: %s\n", mode.w, mode.h, mode.refresh_rate, SDL_GetError());
-            }
-            return;
-        }
-        if (ArcadeResolution()) {
-            fprintf(stderr, "full screen: the screen has no %dx%d mode near %.1f Hz; full screen stays at its own resolution\n",
-                    Video::kWidth, Video::kHeight, Machine::kFramesPerSecond);
-        }
-        SDL_SetWindowFullscreenMode(window, nullptr);
-    }
-    // The window in the middle of the chosen screen
-    void CentreOnScreen(SDL_Window *window) {
-        const SDL_DisplayID display = ChosenDisplay();
-        SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED_DISPLAY(display), SDL_WINDOWPOS_CENTERED_DISPLAY(display));
+        return recomp::sdl::ChosenDisplay(DisplayScreen());
     }
 
     // Full screen as the Display page's "Full screen as" says (BorderlessFullScreen, issue #20): SDL's full screen, or
@@ -142,6 +98,9 @@ namespace {
         if (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) {
             SDL_SetWindowFullscreen(window, false);
             SDL_SyncWindow(window);
+            if (recomp::sdl::SwitchresActive()) {
+                Arcade().SetFullscreen(window, ArcadeChosen(), false); // (a window again: the desktop's own mode back)
+            }
         }
         if (g_borderless.on) {
             g_borderless.on = false;
@@ -167,7 +126,7 @@ namespace {
             g_borderless.on = true;
             CoverScreen(window);
         } else {
-            SetFullscreenMode(window);
+            Arcade().SetFullscreen(window, ArcadeChosen(), true);
             SDL_SetWindowFullscreen(window, true);
         }
     }
@@ -355,8 +314,8 @@ int RunWindowed(Port &port) {
         fullscreen = true; // (a phone's whole screen, its bars hidden)
         const bool fullscreenNow = true;
 #else
-        // (the arcade's resolution: made a window, given its mode, then made full screen; a borderless window: made a
-        // window, then made to cover the screen)
+        // (an arcade resolution: made a window, given its mode (or the desktop switched to the one Switchres makes), then
+        // made full screen; a borderless window: made a window, then made to cover the screen)
         const bool borderless = fullscreen && BorderlessFullScreen();
         const bool fullscreenNow = fullscreen && !ArcadeResolution() && !borderless;
 #endif
@@ -367,7 +326,7 @@ int RunWindowed(Port &port) {
         SDL_DestroyProperties(properties);
 #ifndef __ANDROID__
         if (made) {
-            SetFullscreenMode(made);
+            Arcade().SetFullscreen(made, ArcadeChosen(), fullscreen && !borderless);
             if (borderless) {
                 // (made again, for or without a shader: as large as the screen again, where it was before kept)
                 if (g_borderless.on) {
@@ -458,7 +417,7 @@ int RunWindowed(Port &port) {
         if (presenter.Shaded() && getenv("CPS3RECOMP_SHADER_SHOT")) {
             presenter.Shader()->keepLast = true;
         }
-        if (port.opt.stats) {
+        if (port.opt.stats || ArcadeResolution()) {
             fprintf(stderr, "picture: %s\n", presenter.Shaded()  ? ("OpenGL, shader " + preset).c_str()
                                              : presenter.UsesGpu() ? SDL_GetGPUDeviceDriver(presenter.Device())
                                                                    : SDL_GetRendererName(presenter.Renderer()));
@@ -1065,26 +1024,34 @@ int RunWindowed(Port &port) {
         }
         followShader();
 #ifndef __ANDROID__
-        // The Display page's screen or full screen mode changed: the window to that screen, full screen in that mode
+        // The Arcade monitor page's screen or full screen mode, or the Display page's Full screen as, changed (the menu can
+        // put them back to off): the window to that screen, full screen in that mode (ArcadeScreen::Follow's work, with
+        // the borderless window too)
         if (window) {
-            static int shownScreen = DisplayScreen();
-            static bool shownArcade = ArcadeResolution(), shownBorderless = BorderlessFullScreen();
-            if (DisplayScreen() != shownScreen || ArcadeResolution() != shownArcade || BorderlessFullScreen() != shownBorderless) {
+            static recomp::sdl::ArcadeChoices shown = ArcadeChosen();
+            static bool shownBorderless = BorderlessFullScreen();
+            const recomp::sdl::ArcadeChoices now = ArcadeChosen();
+            if (now.screen != shown.screen || now.mode != shown.mode || now.switchres != shown.switchres || now.monitor != shown.monitor ||
+                BorderlessFullScreen() != shownBorderless) {
                 const bool full = IsFullScreen(window);
                 GoFullScreen(window, false);
-                if (DisplayScreen() != shownScreen) {
-                    CentreOnScreen(window);
+                if (now.screen != shown.screen) {
+                    recomp::sdl::CentreOnScreen(window, now.screen);
                 }
-                SetFullscreenMode(window);
+                Arcade().SetFullscreen(window, now, false); // (the mode kept for full screen; a mode Switchres made taken back)
                 GoFullScreen(window, full);
                 SDL_SyncWindow(window);
-                shownScreen = DisplayScreen();
-                shownArcade = ArcadeResolution();
+                shown = now;
                 shownBorderless = BorderlessFullScreen();
             }
         }
 #endif
-        presenter.SetVsync(FeatureOn("display_vsync")); // (the Display page's VSync, as changed in the menu)
+        // (synced to the screen, in full screen at an arcade mode (the one the window was given, or the desktop in the mode
+        // Switchres made), Keep the board's pace off and not online: VSync on, and each frame paced by the screen's
+        // refreshes (ArcadeScreen::Shown) instead of the frame timer below)
+        const bool arcadeScreen = Arcade().OnArcade(window);
+        const bool syncScreen = Arcade().Paced(window, ArcadeChosen(), port.net != nullptr);
+        presenter.SetVsync(FeatureOn("display_vsync") || syncScreen); // (the Display page's VSync, as changed in the menu)
         port.gpuPresent = presenter.CanShowNative(); // (the frames made for the GPU from here: Machine::gpuPicture)
         if (port.quit) {
             break;
@@ -1093,9 +1060,13 @@ int RunWindowed(Port &port) {
         int width = 0, height = 0;
         presenter.Size(width, height);
         presenter.SetScaling(DisplayScaling());
-        // (full screen in the arcade's resolution: the picture fills the screen's mode, whose shape the monitor gives it)
-        const bool arcadeScreen = window && (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN) && SDL_GetWindowFullscreenMode(window);
-        const SDL_FRect where = FitPicture(width, height, port.ShownWidth(), Video::kHeight, arcadeScreen ? Shape::Fill : DisplayShape(), DisplayScaling());
+        // (full screen in an arcade resolution: the picture fills the screen's mode, whose shape the monitor gives it; a
+        // super resolution's columns stretched over its many, its lines one for one; one of 240 lines, the board's 224 in
+        // its middle: ArcadeLines)
+        SDL_FRect where = FitPicture(width, height, port.ShownWidth(), Video::kHeight, arcadeScreen ? Shape::Fill : DisplayShape(), DisplayScaling());
+        if (arcadeScreen) {
+            where = recomp::sdl::ArcadeLines(where, height, Video::kHeight);
+        }
         // (the Display page's bezels under the picture: made again when they, the window's size or the picture's place
         // change; none on the arcade monitor, which the picture fills)
         {
@@ -1126,9 +1097,14 @@ int RunWindowed(Port &port) {
             menuDirty = true;
         }
         // (the picture shown smaller than the menu's usual 672 lines (a small window, an arcade monitor): the menu drawn
-        // on the screen's own pixels there, so that its letters are not shrunk; drawn again when that changes)
+        // on the screen's own pixels there, so that its letters are not shrunk; on an arcade monitor, on the board's
+        // pixels, which a super resolution stretches as it does the game's; drawn again when that changes)
         {
-            const int wantHeight = static_cast<int>(std::lround(where.h)), wantWidth = static_cast<int>(std::lround(where.w));
+            const int wantHeight = static_cast<int>(std::lround(where.h));
+            int wantWidth = static_cast<int>(std::lround(where.w));
+            if (arcadeScreen && wantHeight == Video::kHeight) {
+                wantWidth = std::min(wantWidth, port.ShownWidth());
+            }
             const bool own = wantHeight >= Video::kHeight && wantHeight < 3 * Video::kHeight && wantWidth < NativeGpu::kOverlayWidth - 1;
             if ((own ? wantWidth : 0) != menuWantWidth || (own ? wantHeight : 0) != menuWantHeight) {
                 menuWantWidth = own ? wantWidth : 0;
@@ -1190,6 +1166,7 @@ int RunWindowed(Port &port) {
             }
             SDL_Delay(8);
             nextFrame = SDL_GetTicksNS();
+            Arcade().Menu(); // (the menu's time is not the game's: the rates measured, and the frame delay's last frame, start again)
             continue;
         }
 
@@ -1276,6 +1253,7 @@ int RunWindowed(Port &port) {
                             port.soundtrack.Rate());
         }
 
+        Arcade().WorkDone(); // (the frame run: drawing it and showing it are the presenter's, below)
         // The frame drawn by the GPU from the native video interface (Presenter::ShowNative), where the machine made it
         // for the GPU, what Shown puts over it put over it there (an overlay: NativeGpu::Overlay); else the CPU's
         // picture as Shown makes it. Zoomed: the part of the picture the camera looks at, the readout's panels as they
@@ -1319,7 +1297,10 @@ int RunWindowed(Port &port) {
             const bool paced = !port.opt.unthrottled && !FastForward();
             port.ReplayMake(paced ? (due > now ? (due - now) / 1e6 * 0.6 : 0.0) : 4.0);
         }
-        if (!port.opt.unthrottled && !FastForward()) {
+        if (syncScreen && !port.opt.unthrottled && !FastForward()) {
+            nextFrame = Arcade().Shown(); // (paced by the screen: the picture just shown waited for its refresh; the frame delay)
+        } else if (!port.opt.unthrottled && !FastForward()) {
+            Arcade().BoardPace(arcadeScreen); // (in an arcade mode, the rate as measured in the log)
             nextFrame += static_cast<uint64_t>(kFrameNs);
             const uint64_t now = SDL_GetTicksNS();
             if (nextFrame > now) {
@@ -1360,6 +1341,7 @@ int RunWindowed(Port &port) {
 #endif
     }
     presenter.Close();
+    Arcade().Close(); // (the desktop's mode as it was, where Switchres made one)
     SDL_DestroyWindow(window);
     while (port.instant.making) { // (a replay being made, finished first)
         port.ReplayMake(1000); // (no game to keep at speed any more)

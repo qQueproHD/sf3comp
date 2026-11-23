@@ -107,6 +107,7 @@ parry windows, the stun gauge) were taken as facts from Grouflon's
 | [Dear ImGui](https://github.com/ocornut/imgui) 1.92.9b | MIT | The launcher's interface |
 | [Inter](https://rsms.me/inter/) 4.1 | SIL Open Font License 1.1 | The launcher's font |
 | [FAAC](https://github.com/knik0/faac) 2.2 | LGPL-2.1-or-later. Copyright (C) 2001 Menno Bakker, (C) 2002-2017 Krzysztof Nikiel, and its other authors (its `AUTHORS`) | The video recording's sound (AAC), compiled into every game's program from its release's sources (its `libfaac/`, but for the SSE2 quantizer) with `cps3recomp/port/faac_config.h` |
+| [Switchres](https://github.com/antonioginer/switchres) 2.2.2 | GPL-2.0-or-later (used here under GPL-3.0). Copyright 2010-2021 Chris Kennedy, Antonio Giner, Alexandre Wodarczyk, Gil Delescluse | The Windows games' Arcade monitor modes made at the board's exact rate (`cps3recomp/recomp-common/arcade_screen.h`): its common and Windows sources, as published, compiled into the program |
 | [zlib](https://zlib.net) | zlib | Reading a ROM set's zip, screenshots |
 | [librashader](https://github.com/SnowflakePowered/librashader) 0.12.1 | MPL-2.0 or GPL-3.0 (used under GPL-3.0) | The Display page's shaders |
 | [slang-shaders](https://github.com/libretro/slang-shaders) | each file its own, stated at its top | The shader presets |

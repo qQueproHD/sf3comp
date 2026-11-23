@@ -26,6 +26,11 @@
 #include <string>
 #include <vector>
 
+namespace recomp::sdl {
+struct ArcadeBoard;
+struct ArcadeChoices;
+} // namespace recomp::sdl
+
 namespace port {
 
 // A path as UTF-8 text (as the rest of the port keeps paths), and back
@@ -494,8 +499,11 @@ int WindowSize();
 // place of full screen (never with the arcade monitor's resolution)
 Bezel DisplayBezel();
 bool BorderlessFullScreen();
-// The Arcade monitor page's full screen resolution (true: the screen switched to the board's 384 x 224), screen (0:
-// the main one, 1..3: the others in the system's order) and Compact menu switch
+// The Arcade monitor page (recomp-common's arcade_sdl.h and arcade_screen.h): the board as it sees it (384 x 224 at
+// 59.6 Hz), the player's choices now, whether a full screen resolution is chosen (Board or Super: never a borderless
+// window then), the screen (0: the main one, 1..3: the others in the system's order) and the Compact menu switch
+recomp::sdl::ArcadeBoard ArcadeBoardPicture();
+recomp::sdl::ArcadeChoices ArcadeChosen();
 bool ArcadeResolution();
 int DisplayScreen();
 bool CompactMenuChosen();

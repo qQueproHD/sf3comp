@@ -2,10 +2,24 @@
 
 ## Unreleased
 
+- **Arcade monitor: super resolution, synced to the screen, modes at the board's exact rate** (as CPS-2 Recomp's; the
+  page now comes from recomp-common's `arcade_sdl.h` and `arcade_screen.h` in place of the port's own code). **Full
+  screen resolution** gains **Super resolution**: a mode of the board's 224 lines and 1920 columns or more (CRT
+  Emudriver's 2560 x 224) with the picture stretched across it, or, where the screen has none, one of 240 lines with
+  the 224 one for one in its middle; 384 x 224 chosen before stays chosen. **Keep the board's pace** (off by default):
+  off, in full screen at an arcade resolution the game runs one frame per screen refresh, each shown as it refreshes
+  (VSync on), so a mode that isn't exactly the board's 59.60 Hz never shows a frame twice or tears; on, the board's own
+  clock as before; online, always the board's pace. Synced, on Windows, a **frame delay** reads each frame's controls
+  and makes its picture as late before the refresh as it can. On Windows, **Make the mode at the board's rate** has
+  [Switchres](https://github.com/antonioginer/switchres) (GroovyMAME's, downloaded at build time) make the chosen mode
+  at exactly 59.60 Hz within the ranges of the **Monitor** chosen (Arcade 15 kHz, Generic 15 kHz, NTSC TV, PAL TV,
+  Arcade 15/25 kHz, Arcade 15/25/31 kHz, Arcade 31 kHz) and switch the desktop to it until the game ends; if it
+  can't, the mode the system lists. Both set on the launcher. The game's log says the mode chosen or made, and every
+  ten seconds the rate measured. Online, the Arcade monitor page is now each player's own, as the Display page is (a
+  match turned it off, which took full screen out of the arcade resolution).
 - **The Discord link at the top of the launcher's Online page** ("Join us on Discord"), as cps2recomp has it.
-- recomp-common synced to 1246257 (the Online page's new order: matches and hosting first, you in the waiting room,
-  name and code at the bottom, 3-second updates; the community link; the Features page's filters worked out once a
-  frame).
+- recomp-common synced to eac7765 (recomp-common#88 merged: the arcade monitor's Switchres modes, screen sync and
+  frame delay, `arcade_screen.h`; and the launcher's Discord link for a game of its own, #87).
 - **The input lag readout in a smaller font** (recomp-common's `kSmallFont`), so it covers less of the picture.
 - recomp-common synced to 641c65d (the smaller font, Windows requests with WinHTTP, the arcade monitor's modes header,
   the menu's compact layout and Reset all options' question).
