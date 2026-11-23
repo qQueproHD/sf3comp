@@ -752,6 +752,10 @@ int RunWindowed(Port &port) {
                 } else if (recomp::sdl::MenuKey(ev.key.scancode, !KeyBound(SDL_SCANCODE_TAB))) {
                     // (Esc, F1, a phone's Back, Tab unless the game has it)
                     toggleMenu();
+                } else if (!port.menu.IsOpen() && (ev.key.mod & SDL_KMOD_GUI) && ev.key.scancode == SDL_SCANCODE_P && !ev.key.repeat) {
+                    port.Key('p'); // Cmd+P: stops the game, and starts it again
+                } else if (!port.menu.IsOpen() && (ev.key.mod & SDL_KMOD_GUI) && ev.key.scancode == SDL_SCANCODE_O) {
+                    port.Key('o'); // Cmd+O: on by one frame (held: frame after frame)
                 } else if (KeyBound(ev.key.scancode)) {
                     // (a key the player has given to the game does only that)
                 } else if (port.net && ev.key.scancode == SDL_SCANCODE_T && !ev.key.repeat) {
@@ -766,10 +770,6 @@ int RunWindowed(Port &port) {
                     }
                 } else if (ev.key.scancode == SDL_SCANCODE_F6 || ev.key.scancode == SDL_SCANCODE_F7) {
                     port.menu.SetSlot(port.menu.Slot() + (ev.key.scancode == SDL_SCANCODE_F7 ? 1 : -1));
-                } else if (!port.menu.IsOpen() && ev.key.scancode == SDL_SCANCODE_P && !ev.key.repeat) {
-                    port.Key('p'); // stops the game, and starts it again
-                } else if (!port.menu.IsOpen() && ev.key.scancode == SDL_SCANCODE_O) {
-                    port.Key('o'); // on by one frame (held: frame after frame)
                 } else if (ev.key.scancode == SDL_SCANCODE_MINUS || ev.key.scancode == SDL_SCANCODE_EQUALS) {
                     port.Key(ev.key.scancode == SDL_SCANCODE_MINUS ? '-' : '='); // slower, faster
                 } else if (!port.menu.IsOpen() && ev.key.scancode == SDL_SCANCODE_BACKSPACE && !ev.key.repeat) {
@@ -896,7 +896,7 @@ int RunWindowed(Port &port) {
             if (keysAfterChat) {
                 keysAfterChat = std::any_of(keys, keys + keyCount, [](bool down) { return down; });
             }
-            if (!(SDL_GetModState() & SDL_KMOD_ALT) && !port.typing && !keysAfterChat) {
+            if (!(SDL_GetModState() & (SDL_KMOD_ALT | SDL_KMOD_GUI)) && !port.typing && !keysAfterChat) {
                 for (int player = 0; player < Players(); player++) {
                     pads[player] |= ReadKeyboard(keys, player);
                 }
