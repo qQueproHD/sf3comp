@@ -389,6 +389,11 @@ const launcher::Collection& launcher::describe_collection() {
         c.online_intro = "Play someone on another machine: join a match a player is hosting, or host one in any of your games for others to "
                          "join, or invite someone from the waiting room. A game's own page has its Online card too, for a match with a code "
                          "only the people you give it to know.";
+        // (where the players talk: the README's Discord link, at the top of the Online page)
+        c.community_url = "https://discord.gg/FSC9GZ6nm";
+        c.community_title = "Join us on Discord";
+        c.community_detail = "Find players for a match, tell us what to fix or add, and hear about new versions first.";
+        c.community_button = "Open Discord";
         return c;
     }();
     return about;
