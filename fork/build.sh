@@ -1,6 +1,6 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-only
-# Fork-only. Builds build/collection/SF3comp.app from your ROM set, with the fork's icon: your own picture if
+# Fork-only. Builds build/collection/SF3comp.app from your ROM set and copies it to /Applications, with the fork's icon: your own picture if
 # fork/icon/custom.png (or .jpg) is there (git-ignored: it stays on this machine), else fork/icon/icon.svg.
 #   fork/build.sh [ROM]      ROM: path to sfiii3nr1.zip (default: $SF3_ROM, else sfiii3nr1.zip beside the repository)
 set -eu
@@ -26,3 +26,10 @@ swift fork/icon/make_icns.swift "$ICON" "$APP/Contents/Resources/AppIcon.icns"
 codesign --force --deep -s - "$APP"
 touch "$APP" # (Finder re-reads the icon)
 echo "fork/build.sh: built $APP"
+
+# (the app is self-contained: settings and ROM paths live in ~/Library/Application Support/SF3comp)
+if [ -z "${NO_INSTALL:-}" ]; then
+    rm -rf /Applications/SF3comp.app
+    ditto "$APP" /Applications/SF3comp.app
+    echo "fork/build.sh: installed /Applications/SF3comp.app (NO_INSTALL=1 skips this)"
+fi

@@ -27,7 +27,7 @@ Fork-only files (never conflict): `FORK.md`, `CLAUDE.md`, `fork/`.
 ## Build
 
 ```sh
-fork/build.sh /path/to/sfiii3nr1.zip    # translate, build, bundle with the fork icon -> build/collection/SF3comp.app
+fork/build.sh /path/to/sfiii3nr1.zip    # translate, build, bundle with the fork icon, install to /Applications
 ```
 
 App icon: put your own picture at `fork/icon/custom.png` (or `.jpg`) and rebuild. It is git-ignored, so it never
