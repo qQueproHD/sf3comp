@@ -17,8 +17,9 @@
   can't, the mode the system lists. Both set on the launcher. The game's log says the mode chosen or made, and every
   ten seconds the rate measured. Online, the Arcade monitor page is now each player's own, as the Display page is (a
   match turned it off, which took full screen out of the arcade resolution).
-- recomp-common synced to the `arcade-switchres` branch (recomp-common#88, not merged yet: to be synced again to its
-  merge): the arcade monitor's screen and Switchres, and the launcher's Online page and filters from #85 and #86.
+- **The Discord link at the top of the launcher's Online page** ("Join us on Discord"), as cps2recomp has it.
+- recomp-common synced to eac7765 (recomp-common#88 merged: the arcade monitor's Switchres modes, screen sync and
+  frame delay, `arcade_screen.h`; and the launcher's Discord link for a game of its own, #87).
 - **The input lag readout in a smaller font** (recomp-common's `kSmallFont`), so it covers less of the picture.
 - recomp-common synced to 641c65d (the smaller font, Windows requests with WinHTTP, the arcade monitor's modes header,
   the menu's compact layout and Reset all options' question).
