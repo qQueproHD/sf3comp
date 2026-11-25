@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Which controller is which player** (the launcher's Controllers page, recomp-common's `[controllers]`): each
+  connected gamepad is Automatic, Player 1-4 or Not used, and the game hands out its gamepads that way (again when
+  one comes or goes), in place of the first one connected always being player 1's. A Steam Deck's own controls can
+  be Not used, so two pads plugged into it play each other. Nothing chosen: as before. The Start + Back menu chord
+  comes only from a player's gamepad.
 - **Arcade monitor: super resolution, synced to the screen, modes at the board's exact rate** (as CPS-2 Recomp's; the
   page now comes from recomp-common's `arcade_sdl.h` and `arcade_screen.h` in place of the port's own code). **Full
   screen resolution** gains **Super resolution**: a mode of the board's 224 lines and 1920 columns or more (CRT
