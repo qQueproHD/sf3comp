@@ -11,6 +11,11 @@ namespace port {
 inline constexpr recomp::i18n::Entry kSpanish[] = {
     {"Video", "Vídeo"},
     {"What you play and hear, recorded as an MP4 video that plays anywhere.", "Lo que juegas y oyes, grabado como un vídeo MP4 que se reproduce en cualquier parte."},
+    {"SOCD cleaner", "Limpieza SOCD"},
+    {"What the game sees when you hold two opposite directions at once, as a hit box or a keyboard can (the board passes both on, and games do odd things with them). Neutral: up and down is neither, left and right is neither. Hit box: up and down is up, left and right is neither. 4-way: as Neutral, and no diagonals, the direction pressed last winning. Your own: online the other player's choice is theirs.", "Lo que ve el juego cuando mantienes dos direcciones opuestas a la vez, como permiten un hit box o un teclado (la placa pasa las dos, y los juegos hacen cosas raras con ellas). Neutral: arriba y abajo es ninguna, izquierda y derecha es ninguna. Hit box: arriba y abajo es arriba, izquierda y derecha es ninguna. 4 direcciones: como Neutral y sin diagonales; gana la última dirección pulsada. Es tuya: en línea, la del otro jugador es suya."},
+    {"Neutral (U+D=N, L+R=N)", "Neutral (Ar+Ab=N, I+D=N)"},
+    {"Hit box (U+D=U, L+R=N)", "Hit box (Ar+Ab=Ar, I+D=N)"},
+    {"4-way, no diagonals", "4 direcciones, sin diagonales"},
     {"Record video", "Grabar vídeo"},
     {"Records the game as you play it, with its sound (the custom soundtrack's too), as an MP4 video in videos beside your saves, until this row again (Stop recording) or Alt+F12. The picture is as screenshots take it, readouts and all, without the lines at the bottom; the video's time is the game's: stopped or in this menu nothing is recorded, and slowed or sped up it plays at the game's own speed.", "Graba el juego tal como lo juegas, con su sonido (también el de la banda sonora personalizada), como un vídeo MP4 en videos junto a tus partidas guardadas, hasta esta fila otra vez (Parar la grabación) o Alt+F12. La imagen es como la toman las capturas, con las lecturas, sin las líneas de abajo; el tiempo del vídeo es el del juego: parado o en este menú no se graba nada, y ralentizado o acelerado se reproduce a la velocidad propia del juego."},
     {"Video size", "Tamaño del vídeo"},
