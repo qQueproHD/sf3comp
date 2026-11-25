@@ -556,7 +556,12 @@ int RunWindowed(Port &port) {
     std::vector<float> musicMade;
     bool musicSilent = false;
 
-    std::vector<SDL_Gamepad *> gamepads;
+    std::vector<SDL_Gamepad *> gamepads; // (those connected, in the order they came)
+    // Each player's gamepad: those the launcher's Controllers page gave a player, then the rest in the order they came
+    // (recomp-common bindings.h: [controllers]); given out again when one comes or goes, not every frame
+    const recomp::PadChoices padChoices = port.opt.settingsPath.empty() ? recomp::PadChoices{} : recomp::LoadPadChoices(port.opt.settingsPath);
+    SDL_Gamepad *playerPads[recomp::kBindMaxPlayers] = {};
+    int padsGivenFor = -1; // (the players they were given out for; -1: to do again)
     // The in-game menu: opened and closed by Esc, F1, a gamepad stick's click or its Start and Select
     // together (the game is left from its "Quit game"). While it is open the game stands still and the
     // controls work the menu; buttons held as it closes do not reach the game until let go.
@@ -852,6 +857,7 @@ int RunWindowed(Port &port) {
             case SDL_EVENT_GAMEPAD_ADDED:
                 if (SDL_Gamepad *gp = SDL_OpenGamepad(ev.gdevice.which)) {
                     gamepads.push_back(gp);
+                    padsGivenFor = -1;
                 }
                 break;
             case SDL_EVENT_GAMEPAD_REMOVED:
@@ -859,6 +865,9 @@ int RunWindowed(Port &port) {
                     if (SDL_GetGamepadID(*it) == ev.gdevice.which) {
                         SDL_CloseGamepad(*it);
                         gamepads.erase(it);
+                        // (given out again before any player's gamepad is read: this one is no longer open)
+                        std::fill(std::begin(playerPads), std::end(playerPads), nullptr);
+                        padsGivenFor = -1;
                         break;
                     }
                 }
@@ -891,8 +900,9 @@ int RunWindowed(Port &port) {
             }
         }
         if (port.opt.moviePlay.empty() && !port.opt.autoPlay) {
-            // The keyboard is every player's (each has the keys chosen for it); the first gamepad is player
-            // 1's, a second player 2's, and so on
+            // The keyboard is every player's (each has the keys chosen for it); each gamepad is the player's the
+            // launcher's Controllers page gave it, or, left at Automatic, the next player without one in the order
+            // they came; one set to Not used plays nobody
             uint16_t pads[Machine::kMaxPlayers] = {};
             int keyCount = 0;
             const bool *keys = SDL_GetKeyboardState(&keyCount);
@@ -933,9 +943,15 @@ int RunWindowed(Port &port) {
             pads[0] |= touch.Read(port.menu.IsOpen());
             bool trigger = false;
             const bool stepOnTrigger = !PadInputBound(g_bindings, Table(), {-1, SDL_GAMEPAD_AXIS_LEFT_TRIGGER});
-            for (size_t i = 0; i < gamepads.size() && static_cast<int>(i) < Players(); i++) {
-                pads[i] |= ReadGamepad(gamepads[i], static_cast<int>(i));
-                const bool left = stepOnTrigger && SDL_GetGamepadAxis(gamepads[i], SDL_GAMEPAD_AXIS_LEFT_TRIGGER) > kDead;
+            if (padsGivenFor != Players()) {
+                recomp::AssignPads(padChoices, gamepads.data(), static_cast<int>(gamepads.size()), Players(), playerPads);
+                padsGivenFor = Players();
+            }
+            for (int i = 0; i < Players() && i < recomp::kBindMaxPlayers && i < Machine::kMaxPlayers; i++) {
+                SDL_Gamepad *const gp = playerPads[i];
+                if (!gp) continue;
+                pads[i] |= ReadGamepad(gp, i);
+                const bool left = stepOnTrigger && SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_LEFT_TRIGGER) > kDead;
                 trigger = trigger || left;
                 hurry = hurry || (multi && left);
                 // (while the game runs, the left trigger is its player's Tag: kTag; in a Multi game run, fast forward)
@@ -963,7 +979,8 @@ int RunWindowed(Port &port) {
             previousPad = all;
             // Start and Select held together open and close the menu, whatever they are bound to (the second
             // of them to go down is not also a press in the menu; neither reaches the game until let go)
-            if (menuChord.Step(gamepads.data(), static_cast<int>(gamepads.size()))) {
+            // (the players' gamepads: one that plays nobody does not open it)
+            if (menuChord.Step(playerPads, std::min(Players(), recomp::kBindMaxPlayers))) {
                 toggleMenu();
                 pressed = 0;
                 heldAtClose = previousPad;
