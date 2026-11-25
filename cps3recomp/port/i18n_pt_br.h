@@ -11,6 +11,11 @@ namespace port {
 inline constexpr recomp::i18n::Entry kPortuguese[] = {
     {"Video", "Vídeo"},
     {"What you play and hear, recorded as an MP4 video that plays anywhere.", "O que você joga e ouve, gravado como um vídeo MP4 que toca em qualquer lugar."},
+    {"SOCD cleaner", "Limpeza SOCD"},
+    {"What the game sees when you hold two opposite directions at once, as a hit box or a keyboard can (the board passes both on, and games do odd things with them). Neutral: up and down is neither, left and right is neither. Hit box: up and down is up, left and right is neither. 4-way: as Neutral, and no diagonals, the direction pressed last winning. Your own: online the other player's choice is theirs.", "O que o jogo vê quando você segura duas direções opostas ao mesmo tempo, como um hit box ou um teclado permitem (a placa passa as duas, e os jogos fazem coisas estranhas com elas). Neutro: cima e baixo é nenhuma, esquerda e direita é nenhuma. Hit box: cima e baixo é cima, esquerda e direita é nenhuma. 4 direções: como Neutro e sem diagonais; vale a última direção apertada. É sua: online, a do outro jogador é dele."},
+    {"Neutral (U+D=N, L+R=N)", "Neutro (C+B=N, E+D=N)"},
+    {"Hit box (U+D=U, L+R=N)", "Hit box (C+B=C, E+D=N)"},
+    {"4-way, no diagonals", "4 direções, sem diagonais"},
     {"Record video", "Gravar vídeo"},
     {"Records the game as you play it, with its sound (the custom soundtrack's too), as an MP4 video in videos beside your saves, until this row again (Stop recording) or Alt+F12. The picture is as screenshots take it, readouts and all, without the lines at the bottom; the video's time is the game's: stopped or in this menu nothing is recorded, and slowed or sped up it plays at the game's own speed.", "Grava o jogo como você joga, com o som (também o da trilha sonora personalizada), como um vídeo MP4 em videos ao lado dos seus saves, até esta linha de novo (Parar gravação) ou Alt+F12. A imagem é como as capturas a tiram, com as leituras, sem as linhas de baixo; o tempo do vídeo é o do jogo: parado ou neste menu nada é gravado, e mais lento ou mais rápido ele toca na velocidade do próprio jogo."},
     {"Video size", "Tamanho do vídeo"},

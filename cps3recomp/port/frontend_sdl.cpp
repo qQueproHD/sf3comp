@@ -8,6 +8,7 @@
 #include "port.h"
 #include "png_write.h"
 #include "present.h"
+#include "socd.h"
 #include "touch.h"
 
 #include "../runtime/game.h"
@@ -50,6 +51,8 @@ namespace {
                   kBoundActions[3].bit == kRight && kBoundActions[4].bit == kPunch1 && kBoundActions[9].bit == kKick3 &&
                   kBoundActions[10].bit == kStart && kBoundActions[11].bit == kCoin &&
                   kBoundActions[12].bit == (kPunch1 | kPunch2 | kPunch3) && kBoundActions[13].bit == (kKick1 | kKick2 | kKick3));
+
+    SocdCleaner socdCleaners[Machine::kMaxPlayers]; // (each player's own: port/socd.h)
 
     constexpr int kDead = 16000; // how far a stick or a trigger must go to count
 
@@ -946,6 +949,11 @@ int RunWindowed(Port &port) {
             triggerHeld = trigger && port.paused ? triggerHeld + 1 : 0;
             if (!port.menu.IsOpen() && (triggerHeld == 1 || (triggerHeld > 24 && triggerHeld % 4 == 0))) {
                 port.Key('o');
+            }
+            // (opposite directions held together, as the SOCD cleaner says: port/socd.h)
+            const auto socd = static_cast<Socd>(std::clamp(FeatureValue("socd"), 0, 3));
+            for (int player = 0; player < Machine::kMaxPlayers; player++) {
+                pads[player] = socdCleaners[player].Clean(socd, pads[player]);
             }
             uint16_t all = 0;
             for (const uint16_t one : pads) {

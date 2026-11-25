@@ -145,6 +145,14 @@ void RegisterPortFeatures() {
                              "is instant. Training, the alternative modes and the viewers keep the "
                              "port's own readable code for the routines it has rewritten.",
                              kFeatureEnhanced});
+    // (socd: port/socd.h, in the window's reading of the controls, so online the other side gets them cleaned)
+    TheGame().features.push_back({"socd", "Game", "SOCD cleaner",
+                                  "What the game sees when you hold two opposite directions at once, as a hit box or a keyboard "
+                                  "can (the board passes both on, and games do odd things with them). Neutral: up and down is "
+                                  "neither, left and right is neither. Hit box: up and down is up, left and right is neither. "
+                                  "4-way: as Neutral, and no diagonals, the direction pressed last winning. Your own: online "
+                                  "the other player's choice is theirs.",
+                                  0, {"Off", "Neutral (U+D=N, L+R=N)", "Hit box (U+D=U, L+R=N)", "4-way, no diagonals"}});
     // (rapid_fire: Port::RapidFire)
     TheGame().features.push_back({"rapid_fire", "Game", "Rapid fire",
                                   "A button held down is pressed again and again (fifteen times a second), for the first button or "
