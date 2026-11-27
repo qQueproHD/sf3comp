@@ -646,6 +646,70 @@ int RunWindowed(Port &port) {
     // (a touch screen's controls: touch.h)
     TouchControls touch;
     std::vector<uint32_t> touchPicture;
+    // The open menu answers a finger itself, the touch controls on or off (with them off and no gamepad, it is the only
+    // way back to them): a finger put down on it and lifted where it went down does what a click does on the row under
+    // it, and slid up or down moves through the rows a row at a time. A finger on one of the touch controls'
+    // buttons is still theirs (Menu closes it, the first two choose and go back). What it chose is done in the loop,
+    // after the events (menuTaps)
+    std::vector<recomp::Menu::Chosen> menuTaps;
+    struct MenuFinger {
+        SDL_FingerID id = 0;
+        bool down = false, slid = false;
+        float x0 = 0, y0 = 0, stepY = 0;
+    } menuFinger;
+    touch.before = [&](const SDL_Event &e, float x, float y) {
+        auto tell = [&](recomp::MenuMouse what) {
+            if (menuPlace.w > 0 && menuPlace.h > 0) {
+                float mx = 0, my = 0;
+                menuPlace.ToMenu(x, y, mx, my);
+                menuTaps.push_back(port.menu.Shared().Mouse(what, mx, my));
+            }
+        };
+        if (e.type == SDL_EVENT_FINGER_DOWN) {
+            if (port.net || !port.menu.IsOpen() || touch.OnButton(x, y)) {
+                return false;
+            }
+            // (not chosen yet: choosing a row can scroll the list, and the lift's click, by where the rows were last
+            // drawn, would then land on another row)
+            menuFinger = {e.tfinger.fingerID, true, false, x, y, y};
+            return true;
+        }
+        if (!menuFinger.down || e.tfinger.fingerID != menuFinger.id) {
+            return false;
+        }
+        if (e.type == SDL_EVENT_FINGER_MOTION) {
+            // (a row's worth of sliding, about a twentieth of the menu's height, is a row)
+            const float row = std::max(1.0f, menuPlace.h / 20);
+            menuFinger.slid = menuFinger.slid || std::hypot(x - menuFinger.x0, y - menuFinger.y0) > row * 0.5f;
+            for (; port.menu.IsOpen() && menuFinger.slid && y - menuFinger.stepY <= -row; menuFinger.stepY -= row) {
+                tell(recomp::MenuMouse::WheelDown);
+            }
+            for (; port.menu.IsOpen() && menuFinger.slid && y - menuFinger.stepY >= row; menuFinger.stepY += row) {
+                tell(recomp::MenuMouse::WheelUp);
+            }
+            return true;
+        }
+        menuFinger.down = false;
+        if (e.type == SDL_EVENT_FINGER_UP && !menuFinger.slid && port.menu.IsOpen()) {
+            tell(recomp::MenuMouse::Click);
+        }
+        return true;
+    };
+    auto takeMenuTaps = [&]() {
+        for (const recomp::Menu::Chosen &chosen : menuTaps) {
+            if (!port.menu.IsOpen()) {
+                break;
+            }
+            port.MenuAct(port.menu.Take(chosen));
+            menuDirty = true;
+            if (!port.menu.IsOpen()) {
+                heldAtClose = previousPad;
+            }
+        }
+        menuTaps.clear();
+    };
+    // (checks: CPS3RECOMP_TOUCH_LOG, the touch controls' read logged each frame it presses something)
+    const bool touchLog = getenv("CPS3RECOMP_TOUCH_LOG") != nullptr;
     // (the menu's Zoom row, as last seen: a change there is the camera's, and a zoom's press is the row's)
     int zoomRow = port.zoom.Choice();
     const double kFrameNs = 1e9 / Machine::kFramesPerSecond;
@@ -658,8 +722,9 @@ int RunWindowed(Port &port) {
         }
         // (the checks, CPS3RECOMP_MENU_SCRIPT=FRAME:KEYS[;FRAME:KEYS...]: from that frame on, the in-game menu worked as a
         // player works it, a key a pass of this loop: m opens or closes it, u d l r up, down, left, right, a confirms, b
-        // goes back, cXxY. clicks the mouse at that point of the window, wXxY. turns its wheel down there:
-        // games/sfiii3/checkwide.sh, widescreen switched in the menu)
+        // goes back, cXxY. clicks the mouse at that point of the window, wXxY. turns its wheel down there, and fXxY.,
+        // gXxY., hXxY. put a finger down on the touch screen there, move it there and lift it there (the window's
+        // pixels; with the menu closed too): games/sfiii3/checkwide.sh, widescreen switched in the menu)
         if (static const char *script = getenv("CPS3RECOMP_MENU_SCRIPT"); script && !port.net) {
             static std::string left = script;
             static size_t at = std::string::npos;
@@ -672,7 +737,13 @@ int RunWindowed(Port &port) {
                 if (at < end) {
                     static const std::string kKeys = "udlrab";
                     const char key = left[at++];
-                    if (key == 'c' || key == 'w') {
+                    if (key == 'f' || key == 'g' || key == 'h') {
+                        const size_t stop = std::min(left.find('.', at), end);
+                        float x = 0, y = 0;
+                        sscanf(left.substr(at, stop - at).c_str(), "%fx%f", &x, &y);
+                        at = std::min(stop + 1, end);
+                        touch.Scripted(key == 'f' ? SDL_EVENT_FINGER_DOWN : key == 'g' ? SDL_EVENT_FINGER_MOTION : SDL_EVENT_FINGER_UP, x, y);
+                    } else if (key == 'c' || key == 'w') {
                         // (cXxY. : the mouse clicked at that point of the window; wXxY. : its wheel turned down there, both
                         // as SDL's events, through the mouse's own way into the menu below)
                         const size_t stop = std::min(left.find('.', at), end);
@@ -876,6 +947,10 @@ int RunWindowed(Port &port) {
             }
         }
 
+        takeMenuTaps(); // (the menu's taps, taken with the fingers: menuFinger)
+        // (the Touch controls and Touch movement features: main.cpp; not on a Mac, where neither is: on, floating)
+        touch.Allow(FeatureValue("touch_controls") != 1);
+        touch.Floating(FeatureValue("touch_movement") == 0);
         if (touch.TakeMenuPress()) {
             toggleMenu();
         }
@@ -940,7 +1015,11 @@ int RunWindowed(Port &port) {
                 }
                 port.zoom.Pan(std::clamp(across, -1, 1), std::clamp(down, -1, 1));
             }
-            pads[0] |= touch.Read(port.menu.IsOpen());
+            const uint16_t touched = touch.Read(port.menu.IsOpen());
+            if (touchLog && touched) {
+                printf("touch %llu: %04x\n", static_cast<unsigned long long>(port.frame), touched);
+            }
+            pads[0] |= touched;
             bool trigger = false;
             const bool stepOnTrigger = !PadInputBound(g_bindings, Table(), {-1, SDL_GAMEPAD_AXIS_LEFT_TRIGGER});
             if (padsGivenFor != Players()) {

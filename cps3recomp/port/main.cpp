@@ -159,6 +159,21 @@ void RegisterPortFeatures() {
                                   "A button held down is pressed again and again (fifteen times a second), for the first button or "
                                   "for all of them. The first press is seen at once, as without it.",
                                   0, {"Off", "First button", "Every button"}});
+#ifndef __APPLE__
+    // (touch_controls, touch_movement: port/touch.h; where there may be a touch screen: a phone, a handheld PC, a Steam
+    // Deck; not a Mac)
+    TheGame().features.push_back({"touch_controls", "Game", "Touch controls",
+                                  "A stick, the six buttons, Coin, Start and the menu on a touch screen. On: shown on a phone "
+                                  "until a gamepad or a key is used, and anywhere once the screen is touched; with nothing "
+                                  "touched for a few seconds they are no longer drawn. Off: never shown, so a thumb on a "
+                                  "handheld's screen does nothing. The in-game menu answers a tap either way.",
+                                  0, {"On", "Off"}});
+    TheGame().features.push_back({"touch_movement", "Game", "Touch movement",
+                                  "Where the touch controls' stick is. Where the finger goes down: anywhere in the left half "
+                                  "of the screen away from the buttons, the stick's middle under the finger. Fixed: where it "
+                                  "is drawn.",
+                                  0, {"Where the finger goes down", "Fixed"}});
+#endif
     // (display_*: how the picture is fitted to the window, present.h; the first of each is how it always was)
     TheGame().features.push_back({"display_scaling", "Display", "Scaling",
                                   "Sharp: as large as fits, each pixel a crisp block. Whole pixels: every pixel the same whole "
