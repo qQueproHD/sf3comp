@@ -11,6 +11,7 @@
 #include "../runtime/game.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <iterator>
 
 namespace port {
@@ -18,6 +19,8 @@ namespace port {
 namespace {
     // The first page's own rows
     enum { kCoin = 1, kStart2, kTest, kLeave };
+    // The save states' slots (the Slot row, F6 / F7: 1 to 99, around; slots 1-9 the same files as before, Port::StatePath)
+    constexpr int kSlots = 99;
 } // namespace
 
 void Menu::OpenOnline(Online online, bool keep) {
@@ -92,6 +95,19 @@ void Menu::Open(bool withStates) {
     for (const cps3recomp::Feature &feature : game.features) {
         config.features.push_back({feature.category, feature.title, feature.description, {feature.choices.begin(), feature.choices.end()}});
     }
+    // (the port's own row under one of them, extraRow: the menu's features are then the game's with it after that one,
+    // and `of` turns the menu's place into the game's)
+    ExtraRow extra = extraRow ? extraRow() : ExtraRow{};
+    size_t extraAt = SIZE_MAX;
+    for (size_t i = 0; i < game.features.size() && !extra.after.empty(); i++) {
+        if (extra.after == game.features[i].name) {
+            extraAt = i + 1;
+            config.features.insert(config.features.begin() + static_cast<std::ptrdiff_t>(extraAt),
+                                   recomp::MenuFeature{game.features[i].category, extra.title, extra.description, extra.choices});
+            break;
+        }
+    }
+    auto of = [extraAt](size_t at) { return at < extraAt ? at : at - 1; };
     for (const cps3recomp::Command &command : game.commands) {
         if (hosting && !strcmp(command.name, "online_host")) {
             config.commands.push_back({command.category, "Stop hosting",
@@ -112,8 +128,18 @@ void Menu::Open(bool withStates) {
     for (const ReplayRow &row : replays) {
         config.commands.push_back({"Replays", row.title, row.detail});
     }
-    config.value = [](size_t feature) { return cps3recomp::FeatureSetting(cps3recomp::TheGame().features[feature].name); };
-    config.setValue = [](size_t feature, int value) { cps3recomp::SetFeatureValue(cps3recomp::TheGame().features[feature].name, value); };
+    config.value = [extraAt, of, get = extra.value](size_t at) {
+        return at == extraAt ? (get ? get() : 0) : cps3recomp::FeatureSetting(cps3recomp::TheGame().features[of(at)].name);
+    };
+    config.setValue = [extraAt, of, set = extra.setValue](size_t at, int value) {
+        if (at == extraAt) {
+            if (set) {
+                set(value);
+            }
+            return;
+        }
+        cps3recomp::SetFeatureValue(cps3recomp::TheGame().features[of(at)].name, value);
+    };
     // (of a long choice, those the launcher leaves in the menu: settings.ini's [menu], recomp-common/settings.h)
     {
         recomp::Ini settings(cps3recomp::SettingsPath());
@@ -133,11 +159,14 @@ void Menu::Open(bool withStates) {
                 }
             }
         }
-        config.offered = [offered](size_t feature, int choice) {
-            return feature >= offered.size() || choice < 0 || choice >= static_cast<int>(offered[feature].size()) || offered[feature][static_cast<size_t>(choice)];
+        config.offered = [offered, extraAt, of](size_t at, int choice) {
+            const size_t feature = of(at);
+            return at == extraAt || feature >= offered.size() || choice < 0 || choice >= static_cast<int>(offered[feature].size()) ||
+                   offered[feature][static_cast<size_t>(choice)];
         };
     }
     recomp::layout::Speeds(config);
+    config.slots = kSlots;
     config.speedDescription = "Left/Right: slow motion, or faster than the board. While playing, P (or a click of the right stick) stops "
                               "the game and starts it again; O (or, once stopped, the left trigger) goes on by one frame; - and = change "
                               "the speed.";
@@ -157,6 +186,7 @@ Menu::Menu() {
     // (so that - and = work before the menu is first opened)
     recomp::MenuConfig config;
     recomp::layout::Speeds(config);
+    config.slots = kSlots; // (and F6 / F7 go through them all)
     m_menu.Configure(std::move(config));
 }
 
