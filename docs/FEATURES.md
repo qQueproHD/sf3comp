@@ -12,13 +12,13 @@ prints them all with their descriptions. Online, the host's choices of the ones 
 | Dummy | Stand, crouch or jump; guard (always, after a hit, at random) and what it does after; parries, escapes throws, gets up quickly, mashes out of stun, reversals; record and replay (slots); played by the game at a chosen level |
 | Alternative modes | Survival, endless battle, ring out, tag team battle (tag, knock-out, co-op and 2 vs 2), bonus games, stage viewer, model viewer, colour editor, attract mode |
 | Board | Difficulty, damage, timer speed, rounds, event, bonus games, continue, demo sound, sound output (stereo or the cabinet's mono); the board's test menu |
-| Display | Scaling, picture shape (4:3 or square pixels), RetroArch shaders, zoom on a fighter or both, vsync, window size |
+| Display | Scaling, picture shape (4:3 or square pixels), RetroArch shaders (and your own presets, from one shaders folder every game shares, chosen by name), zoom on a fighter or both, vsync, window size |
 | Sound | Custom soundtrack (your own files, by song or as a playlist) |
 | Screenshots | F12, as PNG; SVG pictures too |
 | Scene export | Save scene (Shift+F12), record clip (Ctrl+F12) and its length, show the scenes folder |
 | Video | Record video (Alt+F12), video size, save replay (Alt+Shift+F12) and its length, show the videos folder |
 | Online | Ping and input delay shown, names hidden |
-| Display | Input lag readout |
+| Display | Input lag readout, FPS counter |
 | Replays | Keep my matches (the Replays page lists them to watch and to play on from) |
 
 The table is the definitive version's (3rd Strike, 990512). The launcher's other games (New Generation, 2nd Impact,

@@ -25,6 +25,9 @@ rm -rf "$BUILD/stage" && mkdir -p "$STAGE"
 copy_programs "$BUILD" "$STAGE" .exe
 cp "$SDL/x86_64-w64-mingw32/bin/SDL3.dll" "$STAGE/"
 cp "$(find /usr/x86_64-w64-mingw32 /usr/lib/gcc/x86_64-w64-mingw32 -name zlib1.dll | head -1)" "$STAGE/"
+# (the programs unstripped, kept beside the archive, not in it: a crash log's program+offset into a function name,
+# tools/release/crash_where.sh)
+rm -rf "$BUILD/symbols" && mkdir -p "$BUILD/symbols" && cp "$STAGE"/*.exe "$BUILD/symbols/"
 x86_64-w64-mingw32-strip "$STAGE"/*.exe
 # (linked statically but for SDL3.dll, zlib1.dll and Windows' own; anything else here is a mistake)
 if x86_64-w64-mingw32-objdump -p "$STAGE"/*.exe | grep -i 'DLL Name' | grep -viE 'SDL3|zlib1|KERNEL32|msvcrt|USER32|SHELL32|ADVAPI32|ole32|api-ms-|GDI32|IMM32|WINMM|VERSION|SETUPAPI|OLEAUT32|COMDLG32|WS2_32|IPHLPAPI|WINHTTP'; then
@@ -48,6 +51,35 @@ cp "$ROOT/tools/diorama/diorama.html" "$STAGE/"
 cp "$(ls /usr/share/doc/libz-mingw-w64*/copyright | head -1)" "$STAGE/licenses/zlib.txt"
 cp /usr/share/doc/mingw-w64-common/copyright "$STAGE/licenses/MinGW-w64-runtime.txt"
 cp /usr/share/doc/gcc-mingw-w64-base/copyright "$STAGE/licenses/GCC-runtime.txt"
+# Signing (docs/RELEASING.md, "Signing the Windows programs"): each program and librashader.dll gets an Authenticode
+# signature and a timestamp before the archive and the update manifest are made of them. WINDOWS_SIGN_PFX, a
+# certificate with its key (PKCS#12; its password in WINDOWS_SIGN_PASSWORD), signs with osslsigncode; WINDOWS_SIGN, a
+# command, is given the files to sign in place instead (a signing service's). With neither, nothing is signed.
+SIGNED="$STAGE/librashader.dll"
+for program in "$STAGE"/*.exe; do SIGNED="$SIGNED $program"; done
+if [ -n "${WINDOWS_SIGN_PFX:-}" ]; then
+    password=$(mktemp)
+    printf '%s' "${WINDOWS_SIGN_PASSWORD:-}" > "$password"
+    for file in $SIGNED; do
+        osslsigncode sign -pkcs12 "$WINDOWS_SIGN_PFX" -readpass "$password" -h sha256 -n "$NAME" \
+            -i https://github.com/tmcleroy/sf3comp -ts "${WINDOWS_SIGN_TIMESTAMP:-http://timestamp.digicert.com}" \
+            -in "$file" -out "$file.signed" >/dev/null
+        mv "$file.signed" "$file"
+    done
+    rm -f "$password"
+elif [ -n "${WINDOWS_SIGN:-}" ]; then
+    # shellcheck disable=SC2086
+    $WINDOWS_SIGN $SIGNED
+fi
+if [ -n "${WINDOWS_SIGN_PFX:-}${WINDOWS_SIGN:-}" ]; then
+    for file in $SIGNED; do
+        if ! osslsigncode verify -in "$file" 2>&1 | grep -q "^Signature Index: 0"; then
+            echo "error: $file has no signature" >&2
+            exit 1
+        fi
+    done
+    echo "signed: $(echo $SIGNED | wc -w | tr -d ' ') files"
+fi
 rm -f "$OUT/$ARCHIVE-windows-x64.zip"
 (cd "$BUILD/stage" && zip -qr "$OUT/$ARCHIVE-windows-x64.zip" "$ARCHIVE")
 check_archive "$OUT/$ARCHIVE-windows-x64.zip"

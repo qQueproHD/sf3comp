@@ -51,6 +51,34 @@ them and attaches them to the draft that the tag opens.
 
 6. Add an empty "Unreleased" section to `CHANGELOG.md` for what comes next.
 
+Keep `build/release-windows/symbols/` from the Windows build: its programs unstripped. A Windows crash writes the
+calls that led to it into the game's `logs/game.log` as program+offset (`sfiii3.exe+0x40ba8`), and
+`tools/release/crash_where.sh build/release-windows/symbols/sfiii3.exe 0x40ba8 ...` names their functions. Only the
+same build's programs match. `CPS3RECOMP_TEST_CRASH_AT_FRAME=N` makes a game crash as frame N starts, to see what a
+crash leaves in the log.
+
+## Signing the Windows programs
+
+Unsigned programs that nobody has run before are what antivirus programs' machine learning takes for malware:
+Windows Defender has quarantined a CPS-2 Recomp game as `Program:Win32/Wacapew.A!ml`. Each program says what it is
+(version information and a manifest, `cps3recomp/port/windows/`) and makes its requests with WinHTTP rather than a
+hidden `curl.exe` (recomp-common's `winhttp_curl.h`); a signature is what carries the publisher's reputation from one
+release to the next. `tools/release/windows.sh` signs every `.exe` and `librashader.dll` (with a timestamp, before
+the archive and its update manifest are made) when it is given a certificate, and checks that each one carries a
+signature:
+
+- `WINDOWS_SIGN_PFX=<file.pfx> WINDOWS_SIGN_PASSWORD=<password> tools/release/all.sh`: a certificate with its key
+  (PKCS#12), signed with osslsigncode in the build image (cps2recomp's `cps2recomp-build`, built from its
+  `tools/release/Dockerfile` as of cps2recomp #433, which installs it). `all.sh` mounts the certificate's folder
+  read-only and passes the password from the environment. `WINDOWS_SIGN_TIMESTAMP` changes the timestamp server
+  (DigiCert's).
+- `WINDOWS_SIGN="<command>"`: a command given the files to sign in place, run in the build image (a signing service
+  whose key never leaves it, such as Azure Trusted Signing through jsign).
+
+With neither, nothing is signed, as before. When Defender flags a release's program anyway, send the file to
+Microsoft as a false positive (microsoft.com/wdsi/filesubmission, as a software developer): it is cleared for that
+file within days.
+
 ## The launcher's own update
 
 Each script also writes `build/release/update-<system>.txt`: the download and every file in it, with checksums, as

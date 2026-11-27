@@ -10,11 +10,13 @@
 #include "present.h"
 #include "socd.h"
 #include "touch.h"
+#include "i18n.h"
 
 #include "../runtime/game.h"
 #include "../recomp-common/arcade_screen.h"
 #include "../recomp-common/gamepads.h"
 #include "../recomp-common/menu_sdl.h"
+#include "../recomp-common/own_shaders.h"
 
 #include <SDL3/SDL.h>
 
@@ -365,9 +367,15 @@ int RunWindowed(Port &port) {
         sscanf(size, "%dx%d", &checkWidth, &checkHeight);
     }
     const bool canShade = strcmp(SDL_GetCurrentVideoDriver(), "dummy") != 0;
-    std::string preset = canShade ? port.ShaderPreset() : "";
-    int shaderValue = FeatureValue("display_shader");
     std::string shaderError;
+    std::string preset = canShade ? port.ShaderPreset(&shaderError) : "";
+    if (!shaderError.empty()) {
+        // (Your own with no preset to draw with: why, in the log and to the player)
+        fprintf(stderr, "shader: Your own: %s; the picture is drawn without it\n", shaderError.c_str());
+        port.shaderProblem = recomp::i18n::TrFormat("Your own shader: {}", {shaderError});
+    }
+    int shaderValue = FeatureValue("display_shader");
+    std::string shaderOwn = port.ownShader; // (the name Your own's preset was found by)
     if (!preset.empty() && !Shading::Available(shaderError)) {
         fprintf(stderr, "shader: %s; the picture is drawn without it\n", shaderError.c_str());
         preset.clear();
@@ -388,6 +396,8 @@ int RunWindowed(Port &port) {
                 return true;
             }
             fprintf(stderr, "shader %s: %s; the picture is drawn without it\n", preset.c_str(), shaderError.c_str());
+            port.shaderProblem = recomp::i18n::TrFormat("The shader {} didn't load: {}",
+                                                        {recomp::shaders::Utf8(recomp::shaders::PathOf(preset).filename()), shaderError});
             preset.clear();
             // (an OpenGL window is drawn to by nothing else: one that is not, where this one is)
             Placement at;
@@ -431,11 +441,18 @@ int RunWindowed(Port &port) {
     // for or without OpenGL, where it is and as large
     auto followShader = [&]() {
         const int value = FeatureValue("display_shader");
-        if (value == shaderValue || !port.opt.shader.empty() || !canShade) {
+        // (or Your own's preset chosen by another name, while Your own is chosen)
+        if ((value == shaderValue && (value != port::kYourOwnShaderChoice || port.ownShader == shaderOwn)) || !port.opt.shader.empty() ||
+            !canShade) {
             return;
         }
         shaderValue = value;
-        std::string next = port.ShaderPreset();
+        shaderOwn = port.ownShader;
+        std::string next = port.ShaderPreset(&shaderError);
+        if (!shaderError.empty()) {
+            fprintf(stderr, "shader: Your own: %s; the picture is drawn without it\n", shaderError.c_str());
+            port.shaderProblem = recomp::i18n::TrFormat("Your own shader: {}", {shaderError});
+        }
         if (!next.empty() && !Shading::Available(shaderError)) {
             fprintf(stderr, "shader: %s; the picture is drawn without it\n", shaderError.c_str());
             next.clear();
@@ -449,6 +466,11 @@ int RunWindowed(Port &port) {
                 sayPresenter();
             } else {
                 fprintf(stderr, "shader %s: %s; the one before is kept\n", next.c_str(), shaderError.c_str());
+                while (!shaderError.empty() && shaderError.back() == '.') {
+                    shaderError.pop_back(); // (librashader's ends with one)
+                }
+                port.shaderProblem = recomp::i18n::TrFormat("The shader {} didn't load: {}. The one before is kept.",
+                                                            {recomp::shaders::Utf8(recomp::shaders::PathOf(next).filename()), shaderError});
             }
             return;
         }
@@ -583,7 +605,8 @@ int RunWindowed(Port &port) {
     bool triggerChorded = false;
     recomp::sdl::MenuChord menuChord; // a gamepad's Start and Select (Back) together: the menu
     // (with a zoom to work, the left stick's click opens the menu when it is let go, unless a shoulder was pressed
-    // while it was held: then it was the zoom's)
+    // while it was held: then it was the zoom's. Only when the launcher's Menu button has the left stick's click:
+    // recomp-common/menu_buttons.h)
     bool stickWaiting = false;
     auto toggleMenu = [&]() {
         if (port.net) {
@@ -896,7 +919,7 @@ int RunWindowed(Port &port) {
                 } else if (ev.gbutton.button == SDL_GAMEPAD_BUTTON_LEFT_STICK && Zoom::Possible() && !port.menu.IsOpen()) {
                     stickWaiting = true;
                 } else if (recomp::sdl::MenuButton(static_cast<SDL_GamepadButton>(ev.gbutton.button))) {
-                    toggleMenu(); // (Guide, or the left stick's click)
+                    toggleMenu(); // (Guide, or the left stick's click: as the launcher's Menu button has them)
                 } else if (port.menu.IsOpen()) {
                     break;
                 } else if (ev.gbutton.button == SDL_GAMEPAD_BUTTON_RIGHT_STICK) {
@@ -929,7 +952,7 @@ int RunWindowed(Port &port) {
                 }
                 if (ev.gbutton.button == SDL_GAMEPAD_BUTTON_LEFT_STICK && stickWaiting) {
                     stickWaiting = false;
-                    if (!port.menu.IsOpen()) {
+                    if (!port.menu.IsOpen() && recomp::sdl::MenuButton(SDL_GAMEPAD_BUTTON_LEFT_STICK)) {
                         toggleMenu();
                     }
                 }
@@ -1168,6 +1191,14 @@ int RunWindowed(Port &port) {
             }
         }
         followShader();
+        if (!port.shaderProblem.empty()) {
+            // (a preset that couldn't be drawn: that it wasn't at the bottom for a while, and why in the menu, now if it is
+            // open, else when it next opens; and in the log)
+            port.menu.Note(port.shaderProblem);
+            port.shotSaid = recomp::i18n::Tr("SHADER NOT LOADED: THE MENU SAYS WHY");
+            port.shotTicks = 600;
+            port.shaderProblem.clear();
+        }
 #ifndef __ANDROID__
         // The Arcade monitor page's screen or full screen mode, or the Display page's Full screen as, changed (the menu can
         // put them back to off): the window to that screen, full screen in that mode (ArcadeScreen::Follow's work, with
@@ -1418,6 +1449,7 @@ int RunWindowed(Port &port) {
             presenter.Show(shown.data(), port.ShownWidth(), Video::kHeight, where, isZoomed ? &zoomed : nullptr);
         }
         port.LagShown(ran, SDL_GetTicksNS());
+        port.FrameShown(SDL_GetTicksNS());
         // (the checks, CPS3RECOMP_WINDOW_SHOT=PREFIX:EVERY: every so many frames what the window was shown, read back, to
         // PREFIX<frame>.png: games/sfiii3/checkwide.sh)
         static const char *windowShot = getenv("CPS3RECOMP_WINDOW_SHOT");

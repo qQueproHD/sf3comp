@@ -10,6 +10,17 @@
   training's Start over as before. The states share their unchanged blocks, as the instant replay's do, so half a
   minute is about 140 MB (about 230 MB on a guest stage). `cps3recomp/tools/check_rewind.sh` checks that the game comes out frame for frame as a run
   that simply played on.
+- **Fix: the games crashed at start on Windows PCs with Bandicam installed**, even with it closed: its Vulkan
+  capture layer, which Windows loads into every Vulkan program, crashed as the game made its GPU device. The games
+  now leave Bandicam's layer out (OBS capture and the other overlays still work; cps2recomp #446).
+- **A crash leaves its log.** A game's output reached `logs/game.log` only in blocks, so a crash lost it and the
+  launcher's report pointed at an empty log. It is now written as it goes, and on Windows a crash adds where it
+  happened and the calls that led there (the build's unstripped programs, kept in `build/release-windows/symbols/`,
+  and `tools/release/crash_where.sh` name them). `CPS3RECOMP_TEST_CRASH_AT_FRAME=N` crashes a game on purpose to try it.
+- **Windows: fewer antivirus false alarms** (cps2recomp #433). Every program now says what it is (name, version,
+  publisher and a manifest, in its Properties), the games' online play makes its requests itself (WinHTTP, as the
+  launcher already did) instead of starting a hidden `curl.exe`, and the release build signs the programs when it is
+  given a certificate (docs/RELEASING.md); without one, nothing is signed, as before.
 - **Touch controls: turn them off, the stick where the thumb goes down, the menu answers a finger** (#53, from
   spelunkomp's #40 and #41). **Touch controls** (Game page; Android, Windows, Linux) **Off**: never shown, so a thumb
   on a handheld PC's or a Steam Deck's screen no longer brings them up mid-match. **Touch movement**: the stick's
@@ -58,6 +69,23 @@
   fighters**, which both players see change (and which takes the other player's Ready back). When the battle is
   won, the board now starts again for both, as Back to Versus does: it no longer went on into a round 2 with the
   fighters last on, and its winner into arcade mode past the first opponent select (#56).
+- **FPS counter** (Display page, off by default): the frames shown each second, in the top right corner. 59 or 60 at
+  the board's full speed (its screen's 59.6); fewer means this machine isn't keeping up (run-ahead, a heavy shader, a slow processor). Each
+  player's own online.
+- **99 save-state slots** (were 9): the menu's Slot row and F6/F7 go from 1 to 99, around both ways. States already
+  saved in slots 1-9 load as before.
+- **Your own shaders: one folder for every game, the preset chosen by name.** The launcher makes a `shaders` folder in
+  its own folder (beside launcher.ini; updates leave it alone), and its Features page has **Your own preset** and the
+  **Shaders folder** (with Open shaders folder) under Shader; the in-game menu's Display page has Your own preset too,
+  listed again each time it opens. Every `.slangp` there or in a folder there is listed, so a RetroArch shader pack
+  goes in whole. The choice is kept by name (`[shader] own` in settings.ini); choosing one chooses Your own. A game's
+  own `shaders` folder beside its settings still works and comes first. A preset that won't load says why in the menu
+  and in the log.
+- **The left stick's click no longer opens the menu** unless you ask for it: a gamepad's Guide, or Start and Select
+  together, open it now. The launcher's Controllers page has a **Menu button** setting: Guide, left-stick click or
+  Start+Select; Guide or Start+Select (the default); or Start+Select only. Start and Select together always open it
+  (Steam often takes Guide on a Steam Deck). The left stick's click held with a shoulder still zooms. Esc and F1 are
+  unchanged.
 
 ## 0.2.0-beta.2
 
