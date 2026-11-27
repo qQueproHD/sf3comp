@@ -9,6 +9,6 @@
 
 namespace port {
 
-constexpr int kYourOwnShaderChoice = 12;
+constexpr int kYourOwnShaderChoice = 11;
 
 } // namespace port
