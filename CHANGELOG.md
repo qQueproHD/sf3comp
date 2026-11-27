@@ -23,6 +23,20 @@
   version. The service (`online/`) renews a match's lobby entry every 3 seconds (was 10) and forgets a waiting room
   player 15 seconds after their last check-in (was 30), as the launcher now checks in every 3 to 10 seconds.
 - The launcher's Online page: **Set format** under Host, and its introduction says no code is needed for a listed match.
+- **Touch controls: turn them off, the stick where the thumb goes down, the menu answers a finger** (#53, from
+  spelunkomp's #40 and #41). **Touch controls** (Game page; Android, Windows, Linux) **Off**: never shown, so a thumb
+  on a handheld PC's or a Steam Deck's screen no longer brings them up mid-match. **Touch movement**: the stick's
+  middle is where the finger goes down, anywhere in the left half of the screen away from the buttons (the new
+  default), or **Fixed** where it is drawn. The open **in-game menu takes a finger** whether the touch controls are
+  on or off: tap a row to choose it and do what a click does, slide up or down to move a row at a time; a finger on
+  the controls' own buttons is still theirs. A laptop's or a Mac's touchpad no longer counts as a touch screen.
+- **Widescreen set in the in-game menu stays set** in the collection: the menu wrote it to the game's own folder's
+  launcher.ini, and the collection's launcher, which keeps it in its own, turned it back at the next start.
+- **Android: Widescreen is on the Features page** with the other features, kept as the in-game menu sets it; the
+  launcher's Display card (Full screen, which a phone always is) is gone there.
+- **Scanlines: OSSC is gone from the Shader choices**: a RetroArch preset made for that box's "Full" aspect, it drew
+  the picture 4:3 with the sides smeared (widescreen most of all). The Shader is now kept by name in settings.ini, so
+  the other choices stay as chosen; a saved OSSC is Off.
 - **Which controller is which player** (the launcher's Controllers page, recomp-common's `[controllers]`): each
   connected gamepad is Automatic, Player 1-4 or Not used, and the game hands out its gamepads that way (again when
   one comes or goes), in place of the first one connected always being player 1's. A Steam Deck's own controls can
@@ -57,6 +71,23 @@
   fighters**, which both players see change (and which takes the other player's Ready back). When the battle is
   won, the board now starts again for both, as Back to Versus does: it no longer went on into a round 2 with the
   fighters last on, and its winner into arcade mode past the first opponent select (#56).
+- **FPS counter** (Display page, off by default): the frames shown each second, in the top right corner. 59 or 60 at
+  the board's full speed (its screen's 59.6); fewer means this machine isn't keeping up (run-ahead, a heavy shader, a slow processor). Each
+  player's own online.
+- **99 save-state slots** (were 9): the menu's Slot row and F6/F7 go from 1 to 99, around both ways. States already
+  saved in slots 1-9 load as before.
+- **Your own shaders: one folder for every game, the preset chosen by name.** The launcher makes a `shaders` folder in
+  its own folder (beside launcher.ini; updates leave it alone), and its Features page has **Your own preset** and the
+  **Shaders folder** (with Open shaders folder) under Shader; the in-game menu's Display page has Your own preset too,
+  listed again each time it opens. Every `.slangp` there or in a folder there is listed, so a RetroArch shader pack
+  goes in whole. The choice is kept by name (`[shader] own` in settings.ini); choosing one chooses Your own. A game's
+  own `shaders` folder beside its settings still works and comes first. A preset that won't load says why in the menu
+  and in the log.
+- **The left stick's click no longer opens the menu** unless you ask for it: a gamepad's Guide, or Start and Select
+  together, open it now. The launcher's Controllers page has a **Menu button** setting: Guide, left-stick click or
+  Start+Select; Guide or Start+Select (the default); or Start+Select only. Start and Select together always open it
+  (Steam often takes Guide on a Steam Deck). The left stick's click held with a shoulder still zooms. Esc and F1 are
+  unchanged.
 
 ## 0.2.0-beta.2
 

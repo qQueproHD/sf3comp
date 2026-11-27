@@ -178,6 +178,10 @@ if (ANDROID)
 endif ()
 target_compile_options(${GAME} PRIVATE -Wall -Wextra -Wno-unused-parameter -Wno-unused-label -Wno-unused-variable)
 target_compile_definitions(${GAME} PRIVATE RECOMP_VERSION="${RECOMP_VERSION}")
+# (the gamepad's buttons that open the in-game menu until the player chooses, on the launcher's Controllers page: Guide,
+# or Start and Select together; not the left stick's click, which a player presses by accident. The game's, for a game
+# started on its own; the launcher's is set the same in cps3recomp/launcher/CMakeLists.txt. recomp-common/menu_buttons.h)
+target_compile_definitions(${GAME} PRIVATE RECOMP_MENU_BUTTON_DEFAULT="guide")
 
 # The launcher (cps3recomp/launcher; recomp-common's), told about the game from its game.cfg
 function(game_cfg key out)

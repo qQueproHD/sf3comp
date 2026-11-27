@@ -29,6 +29,11 @@ struct Feature {
     // For a feature that is a choice of several things rather than on or off: their names, the first being
     // the one that means off (FeatureValue gives the number of the one chosen)
     std::vector<const char *> choices = {};
+    // Kept by name (recomp-common/settings.h, FeatureInfo::ids): a stable name for each choice, so one can be taken
+    // out or moved without a saved choice changing meaning; and what the old numbers meant ("" for one gone). Empty:
+    // by number.
+    std::vector<const char *> ids = {};
+    std::vector<const char *> numbered = {};
 };
 enum : unsigned {
     kFeatureEnhanced = 2,  // on in the launcher's "Enhanced" preset
@@ -37,7 +42,14 @@ enum : unsigned {
     // Its switch is on the launcher's first page, with "Full screen" (the game's game.cfg names it there:
     // `display`), and not on the Features page: the launcher says at every start whether it is on
     // (--features NAME or -NAME), which goes before what settings.ini has. The in-game menu still has it.
+    // On Android none is: the launcher there has no first-page switches (a phone's one screen is always full), so
+    // the feature is on the Features page with the rest, kept in settings.ini as the in-game menu sets it (a tester,
+    // 2026-11-26: "Wide-screen ... doesn't save if you set it within the game", "is not in the features menu")
+#ifdef __ANDROID__
+    kFeatureFirstPage = 0,
+#else
     kFeatureFirstPage = 16,
+#endif
     // A training aid (hit boxes, frame data, the dummy...): it works only while a training session is on
     // (Game::inTraining); elsewhere it reads as off (FeatureValue), though the menu and settings.ini keep it
     kFeatureTraining = 32,
@@ -176,6 +188,10 @@ std::vector<recomp::FeatureInfo> FeatureList();
 // The player's choices: from settings.ini ([features]: preset = pure | enhanced | custom, then name = 0 | 1),
 // then `list` (comma-separated names, each on; "-name": off). Call after RegisterGame.
 void LoadFeatures(const std::string &settingsPath, const std::string &list);
+// Where the launcher keeps its first-page switches (kFeatureFirstPage): its launcher.ini and the section, "video",
+// or a collection's "video.<id>" in the collection's own launcher.ini (not beside settings.ini). Changed in the
+// in-game menu, the switch is set there too. Not said: launcher.ini beside settings.ini, "video".
+void SetLauncherSwitches(const std::string &launcherIni, const std::string &section);
 // Where settings.ini is (empty: none): a game's sources keep files of their own beside it
 const std::string &SettingsPath();
 bool FeatureOn(const char *name);

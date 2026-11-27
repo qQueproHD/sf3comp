@@ -7,6 +7,7 @@
 #include "system.h"
 #include "menu.h"
 #include "netplay.h"
+#include "own_shader.h"
 #include "bezel.h"
 #include "present.h"
 #include "replay.h"
@@ -342,8 +343,23 @@ struct Port {
     std::string PlayerFolder() const; // (the one settings.ini and the saves are in, with a slash; "" if none)
 
     bool Init(std::string &error);
-    // The shader preset to draw with (shading.h): --shader's, or the Display page's Shader's; "" for none
-    std::string ShaderPreset() const;
+    // The shader preset to draw with (shading.h): --shader's, or the Display page's Shader's; "" for none (and for Your
+    // own with no preset to draw with, `why`, for the player)
+    std::string ShaderPreset(std::string *why = nullptr) const;
+    // The Shader's Your own (own_shader.h, recomp-common/own_shaders.h): the preset chosen by its name, settings.ini's
+    // [shader] own ("": the first found), which the launcher and the menu's Your own preset row choose; the folders it is
+    // looked for in, this game's own (beside settings.ini) and the one every game shares (the launcher's); and why the
+    // preset could not be drawn, for the frontend to tell the player (over the picture and in the menu)
+    std::string ownShader;
+    std::filesystem::path OwnShadersGame() const;
+    std::filesystem::path OwnShadersShared() const;
+    std::string shaderProblem;
+    // The FPS counter (the Display page's fps_counter): the frames handed to the screen each second, counted over the
+    // last half second (FrameShown: the frontend's, as each is)
+    void FrameShown(uint64_t ns);
+    double fps = 0;
+    uint64_t fpsFrom = 0;
+    unsigned fpsFrames = 0;
     // Your own bezel's folder (bezel.h)
     std::string BezelFolder() const;
     // One frame: input (window, movie or made up), the machine, the per-frame outputs

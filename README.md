@@ -117,7 +117,7 @@ playable by either player.
   An arcade monitor (CRT Emudriver) gets the board's own 384 x 224 in full screen, or a super resolution such as
   2560 x 224, on the screen you choose, synced to the screen with a frame delay, and on Windows made at the board's
   exact 59.60 Hz with Switchres, as GroovyMAME does: set up on the launcher's Features page.
-- **An in-game menu** (Esc or F1; on a gamepad the left stick's click, or Start and Select together): save states,
+- **An in-game menu** (Esc or F1; on a gamepad Guide, or Start and Select together): save states,
   speed, the cheats, the board's own settings and test menu, every feature. Pure plays exactly as the board does;
   Enhanced (the default) adds free play, arcade timing, integer scaling and, in widescreen, invisible walls.
 - **Scene export**: any moment of any game saved as its layers, each a see-through PNG (the board's tilemaps, the
@@ -153,8 +153,9 @@ playable by either player.
   `sf3comp-launcher`, choose your ROM sets, and press **Add to Steam**; the game is then in Game Mode under
   **Non-Steam**.
 - **Android:** install `SF3comp-android.apk` (64-bit ARM, Android 9 or later) and add your ROM sets from the phone:
-  they are copied into the app's folder. Touch controls are on the screen until you use a gamepad; Back or the
-  screen's Menu button opens the in-game menu.
+  they are copied into the app's folder. Touch controls are on the screen until you use a gamepad (the stick
+  wherever your left thumb goes down; they can be turned off); Back or the screen's Menu button opens the in-game
+  menu, which answers a tap.
 
 Settings, save states and the board's settings memory are kept in your user folder.
 

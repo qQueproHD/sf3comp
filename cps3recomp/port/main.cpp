@@ -17,6 +17,7 @@
 #include "../runtime/recomp.h"
 #include "../recomp-common/arcade_screen.h"
 #include "../recomp-common/folders.h"
+#include "../recomp-common/own_shaders.h"
 #include "../recomp-common/proxy.h"
 #include "../recomp-common/settings.h"
 #include "../recomp-common/text.h"
@@ -158,6 +159,21 @@ void RegisterPortFeatures() {
                                   "A button held down is pressed again and again (fifteen times a second), for the first button or "
                                   "for all of them. The first press is seen at once, as without it.",
                                   0, {"Off", "First button", "Every button"}});
+#ifndef __APPLE__
+    // (touch_controls, touch_movement: port/touch.h; where there may be a touch screen: a phone, a handheld PC, a Steam
+    // Deck; not a Mac)
+    TheGame().features.push_back({"touch_controls", "Game", "Touch controls",
+                                  "A stick, the six buttons, Coin, Start and the menu on a touch screen. On: shown on a phone "
+                                  "until a gamepad or a key is used, and anywhere once the screen is touched; with nothing "
+                                  "touched for a few seconds they are no longer drawn. Off: never shown, so a thumb on a "
+                                  "handheld's screen does nothing. The in-game menu answers a tap either way.",
+                                  0, {"On", "Off"}});
+    TheGame().features.push_back({"touch_movement", "Game", "Touch movement",
+                                  "Where the touch controls' stick is. Where the finger goes down: anywhere in the left half "
+                                  "of the screen away from the buttons, the stick's middle under the finger. Fixed: where it "
+                                  "is drawn.",
+                                  0, {"Where the finger goes down", "Fixed"}});
+#endif
     // (display_*: how the picture is fitted to the window, present.h; the first of each is how it always was)
     TheGame().features.push_back({"display_scaling", "Display", "Scaling",
                                   "Sharp: as large as fits, each pixel a crisp block. Whole pixels: every pixel the same whole "
@@ -181,14 +197,23 @@ void RegisterPortFeatures() {
                                   "The picture drawn through one of RetroArch's shaders. CRT: a curved arcade monitor. CRT "
                                   "Lottes and CRT Guest: flat monitors, sharp and bright. CRT Royale: the closest to a real "
                                   "monitor's glass and the slowest. CRT Light: lines and a faint mask, for a slow computer. "
-                                  "Scanlines: the lines alone, light, strong, as an OSSC draws them, or dark (a black line "
-                                  "between each two, best with Whole pixels). xBRZ and ScaleFX: the pixels' edges made smooth "
+                                  "Scanlines: the lines alone, light, strong, or dark (a black line between each two, best "
+                                  "with Whole pixels). xBRZ and ScaleFX: the pixels' edges made smooth "
                                   "lines and curves. Your own: the first .slangp preset in the shaders folder beside the "
-                                  "game's settings. The launcher chooses which of these the menu goes through. The picture's "
+                                  "game's settings or in the one every game shares (the launcher's Open shaders folder), or "
+                                  "the one chosen under Your own preset. The launcher chooses which of these the menu goes "
+                                  "through. The picture's "
                                   "shape and size stay as set; the shader draws its pixels in place of Scaling.",
                                   kFeatureMenuChoices,
                                   {"Off", "CRT", "CRT Lottes", "CRT Royale", "CRT Guest", "CRT Light", "Scanlines: light",
-                                   "Scanlines: strong", "Scanlines: OSSC", "Scanlines: dark", "xBRZ", "ScaleFX", "Your own"}});
+                                   "Scanlines: strong", "Scanlines: dark", "xBRZ", "ScaleFX", "Your own"},
+                                  // (kept by name since OSSC's scanlines were taken out on 2026-11-26: a RetroArch preset
+                                  // for that box's "Full" aspect, it drew the picture 4:3 with the sides smeared; a saved
+                                  // OSSC is Off)
+                                  {"off", "crt", "crt_lottes", "crt_royale", "crt_guest", "crt_light", "scanlines_light",
+                                   "scanlines_strong", "scanlines_dark", "xbrz", "scalefx", "own"},
+                                  {"off", "crt", "crt_lottes", "crt_royale", "crt_guest", "crt_light", "scanlines_light",
+                                   "scanlines_strong", "", "scanlines_dark", "xbrz", "scalefx", "own"}});
     // (zoom: the camera, port/zoom.h, from the menu as well as the zoom's buttons; for this run only, as they are)
     if (Zoom::Possible()) {
         TheGame().features.push_back({"zoom", "Display", "Zoom",
@@ -204,6 +229,12 @@ void RegisterPortFeatures() {
                                   "fight, by running the next frames with and without one), what run-ahead takes off that, the "
                                   "port's own time from the press to handing that frame to the screen, and the sum. Your screen's "
                                   "own delay comes on top of it. Not online."});
+    // (Port::FrameShown; each player's own online, as the Display page is: netplay.cpp)
+    TheGame().features.push_back({"fps_counter", "Display", "FPS counter",
+                                  "The frames shown each second, in the top right corner: 59 or 60 at the board's full speed "
+                                  "(its screen's 59.6). Fewer means this machine is not keeping up (run-ahead's frames, a heavy "
+                                  "shader, a slow processor). Slow motion and fast forward count as shown; the speed itself is "
+                                  "said at the bottom."});
     TheGame().features.push_back({"online_ping", "Online", "Ping",
                                   "During an online match, the time a packet takes to the other player and back, at the bottom of "
                                   "the picture (\"PING 42 ms\").",
@@ -434,6 +465,39 @@ bool Port::Init(std::string &error) {
             return feature != "custom_soundtrack" || choice != 3 || DreamcastThere();
         };
     }
+    // The Display page's Your own preset, under the Shader (recomp-common/own_shaders.h): the presets in this game's
+    // shaders folder and the one every game shares, found again each time the menu opens, so one put there while the
+    // game runs is in the list; chosen by name ([shader] own in settings.ini), which chooses Your own too
+    if (!opt.settingsPath.empty()) {
+        recomp::Ini settings(opt.settingsPath);
+        settings.load();
+        ownShader = recomp::shaders::Chosen(settings); // (Your own's preset, by name)
+    }
+    if (opt.shader.empty()) {
+        menu.extraRow = [this] {
+            auto list = std::make_shared<recomp::shaders::Choices>(
+                recomp::shaders::MakeChoices(recomp::shaders::Find(OwnShadersGame(), OwnShadersShared()), ownShader));
+            Menu::ExtraRow row;
+            row.after = "display_shader";
+            row.title = recomp::shaders::kTitle;
+            row.description = recomp::shaders::MenuDescription(OwnShadersShared(), OwnShadersGame());
+            row.choices = list->labels;
+            row.value = [this, list] { return list->IndexOf(ownShader); };
+            row.setValue = [this, list](int at) {
+                ownShader = list->NameAt(at);
+                if (!opt.settingsPath.empty()) {
+                    recomp::Ini settings(opt.settingsPath);
+                    settings.load();
+                    recomp::shaders::Choose(settings, ownShader);
+                    settings.save();
+                }
+                if (FeatureValue("display_shader") != kYourOwnShaderChoice) {
+                    SetFeatureValue("display_shader", kYourOwnShaderChoice);
+                }
+            };
+            return row;
+        };
+    }
     if (TheGame().fighting) {
         menu.replaysPage = true;
         replay.folder = PlayerFolder().empty() ? "" : PlayerFolder() + "replays/"; // (online, the joining side's eepromPath goes)
@@ -449,6 +513,20 @@ bool Port::Init(std::string &error) {
         };
     }
     LoadFeatures(opt.settingsPath, opt.features);
+    if (std::filesystem::path launcher = LauncherFolder(); !launcher.empty() && !opt.settingsPath.empty()) {
+        // (the launcher's first-page switches, which the menu changes too: a collection's are in its own folder. Only
+        // for the settings.ini the launcher gives, in the game's folder beside it: a check's own settings never
+        // change the player's launcher)
+        if (launcher.filename().empty()) {
+            launcher = launcher.parent_path(); // (SDL's folder ends in a separator)
+        }
+        const bool collection = InCollection();
+        const std::filesystem::path gameFolder = collection ? launcher.parent_path() / std::filesystem::u8path(recomp::FolderName(GAME_NAME)) : launcher;
+        std::error_code error;
+        if (std::filesystem::equivalent(TextPath(opt.settingsPath).parent_path(), gameFolder, error)) {
+            SetLauncherSwitches(PathText(launcher / "launcher.ini"), collection ? "video." GAME_ID : "video");
+        }
+    }
     // The game's SH-2 code: translated (native), the interpreter run the same way block by block (free: the
     // translation's reference), or the interpreter an instruction at a time (interp)
     if (opt.cpu.empty()) {
@@ -492,31 +570,43 @@ namespace {
     const char *const kShaderPresets[] = {
         "crt/crt-geom-mini.slangp", "crt/crt-lottes.slangp", "crt/crt-royale.slangp", "crt/crt-guest-advanced-fast.slangp",
         "crt/zfast-crt.slangp", "scanlines/scanline-fract.slangp", "pixel-art-scaling/sharp-bilinear-scanlines.slangp",
-        "scanlines/ossc.slangp", "scanlines/integer-scaling-scanlines.slangp",
+        "scanlines/integer-scaling-scanlines.slangp",
         "edge-smoothing/xbrz/xbrz-freescale-multipass.slangp", "edge-smoothing/scalefx/scalefx.slangp",
     };
     constexpr int kYourOwnShader = 1 + static_cast<int>(std::size(kShaderPresets));
+    static_assert(kYourOwnShader == kYourOwnShaderChoice, "own_shader.h: the launcher's Your own is the Shader's last choice");
 } // namespace
 
-std::string Port::ShaderPreset() const {
+// Your own's folders (recomp-common/own_shaders.h): this game's, shaders/ beside settings.ini; and the one every game
+// shares, shaders/ in the launcher's folder (RECOMP_SHADERS, as the launcher says; else found from the game's folder,
+// a collection's launcher's folder beside it, as LauncherFolder names it)
+std::filesystem::path Port::OwnShadersGame() const {
+    return opt.settingsPath.empty() ? std::filesystem::path() : recomp::shaders::GameFolder(TextPath(opt.settingsPath).parent_path());
+}
+
+std::filesystem::path Port::OwnShadersShared() const {
+    const std::filesystem::path game = opt.settingsPath.empty() ? std::filesystem::path() : TextPath(opt.settingsPath).parent_path();
+    return recomp::shaders::SharedFolder(game, InCollection() ? kCollectionName : GAME_NAME);
+}
+
+std::string Port::ShaderPreset(std::string *why) const {
+    if (why) {
+        why->clear();
+    }
     if (!opt.shader.empty()) {
         return opt.shader;
     }
     const int value = FeatureValue("display_shader");
     std::error_code error;
     if (value == kYourOwnShader) {
-        // (the first .slangp, by name, in shaders/ beside settings.ini)
-        if (opt.settingsPath.empty()) {
-            return "";
+        // (the one chosen by name, or the first found: this game's own folder first, then the shared one)
+        const std::vector<recomp::shaders::Preset> found = recomp::shaders::Find(OwnShadersGame(), OwnShadersShared());
+        std::string problem;
+        const recomp::shaders::Preset *preset = recomp::shaders::Pick(found, ownShader, problem);
+        if (!preset && why) {
+            *why = problem + " (" + recomp::shaders::Utf8(OwnShadersShared()) + ")";
         }
-        std::vector<std::filesystem::path> found;
-        for (const auto &entry : std::filesystem::directory_iterator(TextPath(opt.settingsPath).parent_path() / "shaders", error)) {
-            if (entry.path().extension() == ".slangp") {
-                found.push_back(entry.path());
-            }
-        }
-        std::sort(found.begin(), found.end());
-        return found.empty() ? "" : PathText(found.front());
+        return preset ? recomp::shaders::Utf8(preset->file) : "";
     }
     if (value < 1 || value >= kYourOwnShader) {
         return "";
@@ -1470,6 +1560,19 @@ void Port::ShownOver(std::vector<uint32_t> &pixels, std::vector<SDL_Rect> *panel
             line(it->text, it->own ? recomp::text::Color{170, 200, 255, 255} : recomp::text::Color{255, 255, 255, 255});
         }
     }
+    // (the FPS counter: in the top right corner, in the small letters, the frames handed to the screen a second)
+    if (notices && FeatureOn("fps_counter")) {
+        const recomp::text::Canvas canvas{pixels.data(), across, Video::kHeight};
+        char text[16];
+        snprintf(text, sizeof(text), "%.0f FPS", fps);
+        const float width = recomp::text::SmallTextWidth(text, 1) - 1;
+        const float x = across - 4 - width, y = 2;
+        canvas.Fill(x - 2, y, width + 4, 7, {20, 22, 30, 220});
+        canvas.SmallText(x, y + 1, 1, {255, 255, 255, 255}, text);
+        if (panels) {
+            panels->push_back({static_cast<int>(x) - 2, static_cast<int>(y), static_cast<int>(width) + 5, 7});
+        }
+    }
     // (online: the match's menu (Port::OpenOnlineMenu), over the game, which goes on; the port's own, not the readout,
     // which the game's sources set every frame. Esc's question when there is no match to choose for (--net-arcade's
     // wait: whether to stop hosting, the game stopped meanwhile)
@@ -1510,7 +1613,7 @@ bool Port::ShownPlain() const {
             return false;
         }
     }
-    if (!Boxes().empty() || replay.playing || (FeatureOn("input_lag") && !net)) {
+    if (!Boxes().empty() || replay.playing || (FeatureOn("input_lag") && !net) || FeatureOn("fps_counter")) {
         return false;
     }
     const bool hurried = hurry && !paused && !MultiGame().empty();
@@ -2249,6 +2352,20 @@ void Port::LagMeasure() {
 void Port::LagPressed(uint64_t ns) {
     if (!lag.pressedAt && !menu.IsOpen()) {
         lag.pressedAt = ns;
+    }
+}
+
+void Port::FrameShown(uint64_t ns) {
+    if (!fpsFrom || ns < fpsFrom) {
+        fpsFrom = ns;
+        fpsFrames = 0;
+        return;
+    }
+    fpsFrames++;
+    if (ns - fpsFrom >= 500000000ull) {
+        fps = fpsFrames * 1e9 / static_cast<double>(ns - fpsFrom);
+        fpsFrom = ns;
+        fpsFrames = 0;
     }
 }
 
