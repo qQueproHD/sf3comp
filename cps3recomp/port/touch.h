@@ -9,11 +9,16 @@
 // With no finger on the screen for five seconds they are no longer drawn (the picture whole again); a touch brings
 // them back, and is a press of what is under it, as when they are drawn.
 // In the menu the stick moves through it and the first two buttons choose and go back.
+// Touch movement (the feature's first choice): the stick is where the finger goes down, anywhere in the left half
+// of the screen away from the buttons, as most phone fighting games have it; or fixed where it is drawn.
+// Touch controls Off (the feature): never shown, never pressed. Fingers on a touch screen only (a laptop's or a Mac's
+// touchpad sends them too: not these).
 #pragma once
 
 #include <SDL3/SDL.h>
 
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <string>
 #include <vector>
@@ -28,8 +33,21 @@ public:
     // An event of the window's: a finger's is the controls' (true); a gamepad's or a key's hides them
     bool Event(const SDL_Event &event);
     bool Shown() const {
-        return m_shown;
+        return m_shown && m_allowed;
     }
+    // Off (the Touch controls feature): never shown, never pressed
+    void Allow(bool allowed);
+    // The stick where the finger goes down (on), or fixed where it is drawn (the Touch movement feature)
+    void Floating(bool on);
+    // A finger asked first, shown or not, allowed or not: true takes it from the controls (the open in-game menu's
+    // taps, frontend_sdl.cpp, so that it answers a finger even with the controls off). (x, y) in the window's pixels
+    std::function<bool(const SDL_Event &event, float x, float y)> before;
+    // One of the controls' buttons drawn under (x, y), in the window's pixels
+    bool OnButton(float x, float y) const {
+        return Shown() && !m_idle && Hit(x, y) >= 0;
+    }
+    // (checks: a finger put down, moved and lifted, in the window's pixels, as a touch screen's would be)
+    void Scripted(SDL_EventType type, float x, float y);
     // Player 1's controls held (cps3recomp::Button bits), read once a frame: a press lasts a few frames however short
     // the tap; and the menu's choose and back (recomp::kMenu* bits) as last read. With the menu open, the stick held
     // in one way goes on through its rows, as a held key does in a list.
@@ -58,6 +76,7 @@ private:
         bool menu = false, zoom = false;
     };
     int Hit(float x, float y) const;
+    bool InStick(float x, float y) const;
     void Changed() {
         m_changed = true;
     }
@@ -66,10 +85,12 @@ private:
     bool m_shown = false, m_changed = true, m_menuPressed = false, m_zoomPressed = false;
     bool m_idle = false;    // (shown, but no finger for a while: not drawn)
     bool m_chat = false;
+    bool m_allowed = true, m_floating = false;
     uint64_t m_touched = 0; // (when a finger was last on the screen, SDL_GetTicks)
     int m_width = 0, m_height = 0;
     SDL_FRect m_picture{};
     float m_stickX = 0, m_stickY = 0, m_stickRadius = 0; // the stick's middle and reach
+    float m_homeX = 0, m_homeY = 0;                      // its middle with no finger on it (floating: where it is drawn)
     float m_knobX = 0, m_knobY = 0;                      // where its finger is
     std::vector<Control> m_controls;
     std::vector<std::string> m_names;                    // the game's buttons'
