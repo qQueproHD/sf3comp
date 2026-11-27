@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Touch controls: turn them off, the stick where the thumb goes down, the menu answers a finger** (#53, from
+  spelunkomp's #40 and #41). **Touch controls** (Game page; Android, Windows, Linux) **Off**: never shown, so a thumb
+  on a handheld PC's or a Steam Deck's screen no longer brings them up mid-match. **Touch movement**: the stick's
+  middle is where the finger goes down, anywhere in the left half of the screen away from the buttons (the new
+  default), or **Fixed** where it is drawn. The open **in-game menu takes a finger** whether the touch controls are
+  on or off: tap a row to choose it and do what a click does, slide up or down to move a row at a time; a finger on
+  the controls' own buttons is still theirs. A laptop's or a Mac's touchpad no longer counts as a touch screen.
 - **Which controller is which player** (the launcher's Controllers page, recomp-common's `[controllers]`): each
   connected gamepad is Automatic, Player 1-4 or Not used, and the game hands out its gamepads that way (again when
   one comes or goes), in place of the first one connected always being player 1's. A Steam Deck's own controls can
