@@ -8,13 +8,16 @@
 // (rollback, as --rollback-test tries it: port.h, RollbackTest). Neither side is ahead of the other's controls by
 // more than kMostAhead frames: past that, it waits.
 //
-// --host [PORT] waits for the other player; --join ADDRESS[:PORT] goes to them. The host is player 1. Before the
+// --host [PORT] waits for the other player; --join ADDRESS[:PORT] goes to them. The host is player 1 (until it swaps
+// the sides: Swap). Before the
 // first frame the two make sure they are the same game, and the joining side takes the host's board settings
 // (the settings memory) and the features that change play (Game and Board, and widescreen); the cheats and the rest of
 // the alternative modes, training, run-ahead and the like stay off. Every so often each sends the other a hash of
 // the game as it was at a frame both have the real controls for; if the two differ, the games have come apart
 // (a desync), and the match stops, saying so.
 #pragma once
+
+#include "first_to.h"
 
 #include <array>
 #include <cstdint>
@@ -56,15 +59,25 @@ private:
     bool six = false; // (IPv6, and IPv4 through it)
 };
 
+// Both players back to character select (a fighting game's match, Port::OnlineReselect): each asks ("reselect=1", or 0 to
+// take it back); at the frame the second ask is run for, the board starts again and both are put in. Kept with the
+// game's state in a rollback (Netplay::Kept), so frames run again run the asks again alike.
+struct OnlineReselect {
+    int32_t asked[2] = {0, 0}; // (by machine: 0 the host's)
+    int32_t boot = -1;         // (frames since the board started again, while both are being put in; -1: not)
+};
+
 class Netplay {
 public:
     static constexpr int kDefaultPort = 7845;
     // The packets' layout (2: the host's state sent at the start); two copies must have the same to play, and the
     // lobby shows only matches of this one (the launcher asks with it too)
-    static constexpr int kProtocol = 7; // (3: the version said in the hello and to the service; 4: the welcome's flags;
+    static constexpr int kProtocol = 8; // (3: the version said in the hello and to the service; 4: the welcome's flags;
                                         // 5: the welcome's program words, so two regions' sets play together;
                                         // 6: each player's name in the hello and the welcome, and the chat;
-                                        // 7: events with the controls, for the modes played in a match: Command)
+                                        // 7: events with the controls, for the modes played in a match: Command;
+                                        // 8: the set's score agreed at its end (kSetDone), the host's Swap sides and
+                                        // both players back to character select, as events)
     // The number said to the introduction service for kProtocol, which lists a lobby's matches and a waiting room's
     // players by it: this toolkit's own (3000 and up), so that its lobby and waiting room are its games' alone and
     // not cps2recomp's (until 2026-11-12 the two shared cps2recomp's service; now this collection has its own, online/)
@@ -143,16 +156,42 @@ public:
     int Delay() const {
         return delay;
     }
+    // How steady the packets' time there and back is (ms: how far each differs from the usual, on average); and the
+    // rollbacks of the last whole second: how many, and the most frames one went back (the network readout)
+    int Jitter() const;
+    void Rollbacks(int &count, int &most);
     uint64_t Silent() const;
-    // This side's player (0: player 1)
+    // This side's machine (0: the host's). Its player on the board is SideOf(Local()): the host's player 1 unless the
+    // host has swapped the sides
     int Local() const {
         return local;
+    }
+    // Swap sides (the host's, from its match menu): both machines change sides at the frame its event is for, each
+    // keeping its own controls; the set's score and the win streaks start again from it. The board's player a
+    // machine plays at a frame (0: player 1), as the frame being run has it; and the machine at a board's player
+    static constexpr const char *kSwap = "swap=1";
+    int SideOf(int machine, uint64_t at) const;
+    int SideOf(int machine) const {
+        return SideOf(machine, current);
+    }
+    int MachineAt(int side) const {
+        return SideOf(0) == side ? 0 : 1;
     }
     // Each tick: what has come in, sent again what has not been taken; false if the next frame must wait (the
     // other side's controls are too far behind, or this side is ahead of the other in time)
     bool Ready(uint64_t frame);
     // The frame, with this side's player's controls: rollback first if a guess was wrong, then the frame itself
     void Frame(Port &port, uint16_t controls);
+    // The set (port/first_to.h): the host's online_first_to (Casual, FT3, FT5, FT10), counted on confirmed frames from
+    // the game's matchResult, once both sides have the host's features; a set won ends the match once both sides
+    // agree on its score (kSetDone), shown for two seconds
+    void BeginSet();
+    const FirstTo &Set() const {
+        return set;
+    }
+    bool SetFinished() const {
+        return setFinished;
+    }
     // Why the match is over ("" while it goes on); and whether that is a failure (a desync, the other side lost)
     std::string ended;
     bool failed = false;
@@ -161,8 +200,8 @@ public:
     void Leave();
     // A line on how it is going (ping, rollbacks), every few seconds, to stderr
     void Report(bool last = false);
-    // The two players' names (--net-name; the other's from the hello or the welcome), as the screen shows them: at
-    // most kNameMost letters ("" for none given)
+    // The two players' names (--net-name; the other's from the hello or the welcome), by machine (0 the host's), as
+    // the screen shows them: at most kNameMost letters ("" for none given)
     static constexpr size_t kNameMost = 16;
     std::string Name(int player) const;
     // The chat (issue #196): a line said to the other player, straight to them (never through the service), sent
@@ -180,6 +219,22 @@ public:
 private:
     Settings settings;
     UdpSocket socket;
+    // (the set: its counter, the other side's final score as it said it, and the agreement)
+    FirstTo set;
+    int peerTarget = 0, peerScore[2] = {};
+    bool peerReady = false; // (joining: the host has the same final score and has said so)
+    uint64_t setSent = 0, setAgreed = 0;
+    bool setFinished = false;
+    bool SetAgrees() const;
+    void FinishSet();
+    // (Swap sides: the frames whose host's event swaps them, all of them since the match began; the event's text has it)
+    std::map<uint64_t, bool> swaps;
+    void NoteSwap(int machine, uint64_t at, const std::string &text);
+    // (the network readout: the jitter, and the rollbacks of the second counted and of the last whole one)
+    double jitter = 0;
+    uint64_t rollbackSecond = 0;
+    int rollbackCount = 0, rollbackMost = 0, rollbackLastCount = 0, rollbackLastMost = 0;
+    void RollbackSecond(uint64_t now);
     // (the handshake: the hello or the welcome, sent again until answered)
     std::vector<uint8_t> greeting;
     uint32_t build = 0;
@@ -235,6 +290,8 @@ private:
         std::vector<uint8_t> state; // the game before the frame
         uint16_t used = 0;          // the other side's controls it was run with
         uint32_t hash = 0;          // the game after it, last run (when hashed)
+        FirstTo::Frame result;      // the match as the frame left it (Game::matchResult): counted once confirmed
+        OnlineReselect reselect;    // (Port::onlineReselect as it was before the frame: put back with the game)
     };
     std::array<Kept, kKept> kept;
     uint64_t confirmed = 0;  // the frames before this were run with the other side's real controls

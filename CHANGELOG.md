@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- **Online sets in 3rd Strike, and the score on the screen** (from cps2recomp #438): the host chooses **Set format**
+  under Host on the launcher's Online page (Casual, FT3, FT5, FT10; `online_first_to`, the host's for both). The
+  strip at the top shows the names and the games each has won, in Casual too; the first to the target wins the set,
+  and once both machines agree on the final score it is shown for two seconds and both go back to the launcher. The
+  **win streaks** now count too (they had no match results until now), from the same games. Counted on the frames
+  both machines have the real controls for, from the match's records (two people, and a player with the board's
+  number of rounds); not in training or the tag team battle.
+- **Online → Network stats** (on in Enhanced): at the right under the life bar, in small letters, the ping and its jitter, the input
+  delay, and the last second's rollbacks (how many, the most frames one went back).
+- **Online, Swap sides** (from cps2recomp #472): the host was always player 1; its match menu now has **Swap sides**.
+  Both machines change on the same frame without leaving, each keeping its own controller; the set's score and the
+  win streaks start again, and the tag team battle's fighter picks go with the side. Only the host can: the other
+  player asks in the chat.
+- **Online, Pick characters again** (from cps2recomp #456): after a match only the loser's continue could change
+  characters. Either player chooses **Pick characters again** on the match menu; once the other chooses it too, the
+  board starts again on the same frame for both and both are put in at character select (every game). The set's
+  score stays. The asks and the way back are kept with the game in a rollback.
+- Online protocol 8 (the set's final score agreed, Swap sides and Pick characters again): both players need this
+  version. The service (`online/`) renews a match's lobby entry every 3 seconds (was 10) and forgets a waiting room
+  player 15 seconds after their last check-in (was 30), as the launcher now checks in every 3 to 10 seconds.
+- The launcher's Online page: **Set format** under Host, and its introduction says no code is needed for a listed match.
 - **Which controller is which player** (the launcher's Controllers page, recomp-common's `[controllers]`): each
   connected gamepad is Automatic, Player 1-4 or Not used, and the game hands out its gamepads that way (again when
   one comes or goes), in place of the first one connected always being player 1's. A Steam Deck's own controls can

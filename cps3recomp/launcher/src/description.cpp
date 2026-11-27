@@ -300,6 +300,7 @@ launcher::Description describe_game(const GameInfo& game) {
     d.online.name_argument = "--net-name";
     d.online.arcade_argument = "--net-arcade";
     d.online.delay_argument = "--net-delay";
+    d.online.delay_default = port::Netplay::kDefaultDelay;
     d.online.invite_argument = "--net-invite";
     d.online.invite_name_argument = "--net-invite-name";
 #ifndef LAUNCHER_COLLECTION
@@ -386,9 +387,9 @@ const launcher::Collection& launcher::describe_collection() {
                     "and photograph.",
                     "Open diorama", "diorama.html"}};
         c.online_features = "Online"; // (the ping and the input delay on the screen: port/main.cpp)
+        c.online_host_features = "online_first_to"; // (the set's format, under Host: Netplay::BeginSet)
         c.online_intro = "Play someone on another machine: join a match a player is hosting, or host one in any of your games for others to "
-                         "join, or invite someone from the waiting room. A game's own page has its Online card too, for a match with a code "
-                         "only the people you give it to know.";
+                         "join, or invite someone from the waiting room. No code is needed for a match in the list.";
         // (where the players talk: the README's Discord link, at the top of the Online page)
         c.community_url = "https://discord.gg/FSC9GZ6nm";
         c.community_title = "Join us on Discord";
