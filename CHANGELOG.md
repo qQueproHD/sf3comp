@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Rewind and a practice point** (cps2recomp's, #443 there): two switches on the Game page (and the launcher's
+  Features page), off unless chosen, never online, in every game of the collection. Hold R (a gamepad's left trigger)
+  and the game runs backwards through its last half a minute, unheard; `]` (the left shoulder held half a second) keeps
+  the game as it is, Backspace (the shoulder tapped) puts it back at once and Backslash (the shoulder with the left
+  trigger held) replays the last attempt from it until a button is pressed. Until a point is set, Backspace is
+  training's Start over as before. The states share their unchanged blocks, as the instant replay's do, so half a
+  minute is about 140 MB (about 230 MB on a guest stage). `cps3recomp/tools/check_rewind.sh` checks that the game comes out frame for frame as a run
+  that simply played on.
 - **Online sets in 3rd Strike, and the score on the screen** (from cps2recomp #438): the host chooses **Set format**
   under Host on the launcher's Online page (Casual, FT3, FT5, FT10; `online_first_to`, the host's for both). The
   strip at the top shows the names and the games each has won, in Casual too; the first to the target wins the set,

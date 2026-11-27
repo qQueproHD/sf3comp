@@ -598,6 +598,11 @@ int RunWindowed(Port &port) {
     uint16_t previousPad = 0, heldAtClose = 0;
     recomp::MenuRepeat menuRepeat; // (the arrows held go on through the rows and the choices)
     int triggerHeld = 0;
+    // (the practice point's left shoulder: when it went down, 0 if not waiting; tapped, back to the point; held
+    // kPointHold, the point set. And the left trigger once it has made a chord with the shoulder: not rewind until let go)
+    constexpr uint64_t kPointHold = 500; // milliseconds
+    uint64_t shoulderDownAt = 0;
+    bool triggerChorded = false;
     recomp::sdl::MenuChord menuChord; // a gamepad's Start and Select (Back) together: the menu
     // (with a zoom to work, the left stick's click opens the menu when it is let go, unless a shoulder was pressed
     // while it was held: then it was the zoom's. Only when the launcher's Menu button has the left stick's click:
@@ -878,6 +883,8 @@ int RunWindowed(Port &port) {
                     port.Key('k', kKeyRestart);
                 } else if (!port.menu.IsOpen() && ev.key.scancode == SDL_SCANCODE_BACKSLASH && !ev.key.repeat) {
                     port.Key('k', kKeyExtra);
+                } else if (!port.menu.IsOpen() && ev.key.scancode == SDL_SCANCODE_RIGHTBRACKET && !ev.key.repeat) {
+                    port.Key(']'); // (the practice point set: port.h, Practice)
                 } else if (ev.key.scancode == SDL_SCANCODE_F12 && !ev.key.repeat && (ev.key.mod & SDL_KMOD_SHIFT) && !(ev.key.mod & SDL_KMOD_ALT)) {
                     port.SaveScene(); // (the scene export: scene.h)
                 } else if (ev.key.scancode == SDL_SCANCODE_F12 && !ev.key.repeat && (ev.key.mod & SDL_KMOD_CTRL)) {
@@ -922,10 +929,27 @@ int RunWindowed(Port &port) {
                         port.Key('p');
                     }
                 } else if (ev.gbutton.button == SDL_GAMEPAD_BUTTON_LEFT_SHOULDER) {
-                    port.Key(multi ? 'n' : 'k', kKeyRestart);
+                    // (the left trigger held: Backslash's kKeyExtra, the practice point's replay; with the practice point
+                    // on, tapped: back to it (or the game's Start over), held: the point set; port.h, Practice)
+                    SDL_Gamepad *gp = SDL_GetGamepadFromID(ev.gbutton.which);
+                    const bool chord = !multi && gp && SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_LEFT_TRIGGER) > kDead;
+                    if (chord) {
+                        triggerChorded = true;
+                        port.Key('k', kKeyExtra);
+                    } else if (!multi && port.PracticeOn()) {
+                        shoulderDownAt = std::max<uint64_t>(1, SDL_GetTicks());
+                    } else {
+                        port.Key(multi ? 'n' : 'k', kKeyRestart);
+                    }
                 }
                 break;
             case SDL_EVENT_GAMEPAD_BUTTON_UP:
+                if (ev.gbutton.button == SDL_GAMEPAD_BUTTON_LEFT_SHOULDER && shoulderDownAt) {
+                    shoulderDownAt = 0;
+                    if (!port.menu.IsOpen()) {
+                        port.Key('k', kKeyRestart);
+                    }
+                }
                 if (ev.gbutton.button == SDL_GAMEPAD_BUTTON_LEFT_STICK && stickWaiting) {
                     stickWaiting = false;
                     if (!port.menu.IsOpen() && recomp::sdl::MenuButton(SDL_GAMEPAD_BUTTON_LEFT_STICK)) {
@@ -1014,6 +1038,16 @@ int RunWindowed(Port &port) {
                 port.service = keys[SDL_SCANCODE_9] && !KeyBound(SDL_SCANCODE_9);
             }
             bool hurry = multi && keys[SDL_SCANCODE_F] && !KeyBound(SDL_SCANCODE_F);
+            // (rewind: R held, or a gamepad's left trigger below; port.h, Rewind)
+            const bool rewindOn = port.RewindOn() && !multi;
+            bool rewinding = rewindOn && !(SDL_GetModState() & SDL_KMOD_ALT) && !port.typing && !keysAfterChat && keys[SDL_SCANCODE_R] &&
+                             !KeyBound(SDL_SCANCODE_R);
+            if (shoulderDownAt && SDL_GetTicks() - shoulderDownAt >= kPointHold) {
+                shoulderDownAt = 0;
+                if (!port.menu.IsOpen()) {
+                    port.Key(']');
+                }
+            }
             // (the camera moved by the arrows with Left Shift held, and by each gamepad's d-pad or stick with its click held)
             if (!port.menu.IsOpen()) {
                 int across = 0, down = 0;
@@ -1056,11 +1090,18 @@ int RunWindowed(Port &port) {
                 const bool left = stepOnTrigger && SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_LEFT_TRIGGER) > kDead;
                 trigger = trigger || left;
                 hurry = hurry || (multi && left);
-                // (while the game runs, the left trigger is its player's Tag: kTag; in a Multi game run, fast forward)
-                if (left && !port.paused && !multi) {
+                // (while the game runs, the left trigger is its player's Tag: kTag, or with rewind on, rewind; in a Multi
+                // game run, fast forward)
+                if (left && !port.paused && rewindOn) {
+                    rewinding = rewinding || !triggerChorded;
+                } else if (left && !port.paused && !multi) {
                     pads[i] |= kTag;
                 }
             }
+            if (!trigger) {
+                triggerChorded = false;
+            }
+            port.rewindHeld = rewinding && !port.menu.IsOpen();
             // The left trigger goes on by one frame (held: frame after frame, after a moment), once the game
             // has been stopped: it does not stop it, so a touch of it while playing does nothing
             port.hurry = hurry && !port.menu.IsOpen();

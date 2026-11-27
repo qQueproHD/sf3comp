@@ -121,6 +121,9 @@ namespace {
     enum class Share { Host, Own, Off, Keep };
     Share Shared(const Feature &feature) {
         const std::string category = feature.category, name = feature.name;
+        if (name == "rewind" || name == "practice_point") {
+            return Share::Own; // (each player's own, and nothing online: Port::RewindOn)
+        }
         if (name == "run_ahead" || name == "custom_colours") {
             return Share::Off; // (custom colours: each player's own library, which the other side has not)
         }
