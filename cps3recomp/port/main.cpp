@@ -431,6 +431,11 @@ bool Port::Init(std::string &error) {
     // The Display page's Your own preset, under the Shader (recomp-common/own_shaders.h): the presets in this game's
     // shaders folder and the one every game shares, found again each time the menu opens, so one put there while the
     // game runs is in the list; chosen by name ([shader] own in settings.ini), which chooses Your own too
+    if (!opt.settingsPath.empty()) {
+        recomp::Ini settings(opt.settingsPath);
+        settings.load();
+        ownShader = recomp::shaders::Chosen(settings); // (Your own's preset, by name)
+    }
     if (opt.shader.empty()) {
         menu.extraRow = [this] {
             auto list = std::make_shared<recomp::shaders::Choices>(
@@ -471,11 +476,6 @@ bool Port::Init(std::string &error) {
         };
     }
     LoadFeatures(opt.settingsPath, opt.features);
-    if (!opt.settingsPath.empty()) {
-        recomp::Ini settings(opt.settingsPath);
-        settings.load();
-        ownShader = recomp::shaders::Chosen(settings); // (Your own's preset, by name)
-    }
     // The game's SH-2 code: translated (native), the interpreter run the same way block by block (free: the
     // translation's reference), or the interpreter an instruction at a time (interp)
     if (opt.cpu.empty()) {
