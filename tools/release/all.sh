@@ -16,7 +16,15 @@ docker image inspect cps2recomp-build >/dev/null 2>&1 || {
 }
 tools/release/macos.sh
 docker run --rm --platform linux/amd64 -e CMAKE_BUILD_PARALLEL_LEVEL="${JOBS:-2}" -e UPDATE_REPO="${UPDATE_REPO-tmcleroy/sf3comp}" -v "$ROOT":"$ROOT" -w "$ROOT" cps2recomp-build tools/release/linux.sh
-docker run --rm --platform linux/amd64 -e CMAKE_BUILD_PARALLEL_LEVEL="${JOBS:-2}" -e UPDATE_REPO="${UPDATE_REPO-tmcleroy/sf3comp}" -v "$ROOT":"$ROOT" -w "$ROOT" cps2recomp-build tools/release/windows.sh
+# (Windows' signing, docs/RELEASING.md: the certificate's folder read-only, its password passed on from this
+# environment and never written on the command line)
+set --
+if [ -n "${WINDOWS_SIGN_PFX:-}" ]; then
+    set -- -v "$(cd "$(dirname "$WINDOWS_SIGN_PFX")" && pwd)":/sign:ro -e WINDOWS_SIGN_PFX="/sign/$(basename "$WINDOWS_SIGN_PFX")" \
+        -e WINDOWS_SIGN_PASSWORD -e WINDOWS_SIGN_TIMESTAMP
+fi
+[ -z "${WINDOWS_SIGN:-}" ] || set -- "$@" -e WINDOWS_SIGN
+docker run --rm --platform linux/amd64 -e CMAKE_BUILD_PARALLEL_LEVEL="${JOBS:-2}" -e UPDATE_REPO="${UPDATE_REPO-tmcleroy/sf3comp}" "$@" -v "$ROOT":"$ROOT" -w "$ROOT" cps2recomp-build tools/release/windows.sh
 # the Android app, signed with the release key (~/.config/sf3comp/android-signing.env; the script refuses without it)
 RELEASE=1 tools/release/android.sh
 cd build/release

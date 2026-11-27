@@ -48,7 +48,9 @@ An unofficial native port of Capcom's three Street Fighter III arcade games (CPS
 1. Right-click the zip, choose **Extract All…**, and extract it to a folder of your own (for example
    \`Documents\\Games\`).
 2. In the \`SF3comp\` folder, open **sf3comp-launcher.exe**. The programs are not signed, so the first time Windows
-   may say it protected your PC: press **More info**, then **Run anyway**.
+   may say it protected your PC: press **More info**, then **Run anyway**. If Windows Security takes a game away as
+   \`Program:Win32/Wacapew.A!ml\` (its guess about new programs, not something it found in it), restore it from
+   **Protection history**; the programs are built in public from this repository.
 3. Choose your ROM sets as above, and press a game's **Play**.
 
 ### Linux, Steam Deck and Steam Machine
