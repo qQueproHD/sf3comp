@@ -151,8 +151,9 @@ playable by either player.
   `sf3comp-launcher`, choose your ROM sets, and press **Add to Steam**; the game is then in Game Mode under
   **Non-Steam**.
 - **Android:** install `SF3comp-android.apk` (64-bit ARM, Android 9 or later) and add your ROM sets from the phone:
-  they are copied into the app's folder. Touch controls are on the screen until you use a gamepad; Back or the
-  screen's Menu button opens the in-game menu.
+  they are copied into the app's folder. Touch controls are on the screen until you use a gamepad (the stick
+  wherever your left thumb goes down; they can be turned off); Back or the screen's Menu button opens the in-game
+  menu, which answers a tap.
 
 Settings, save states and the board's settings memory are kept in your user folder.
 

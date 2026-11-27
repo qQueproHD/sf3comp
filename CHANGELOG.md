@@ -10,6 +10,20 @@
   training's Start over as before. The states share their unchanged blocks, as the instant replay's do, so half a
   minute is about 140 MB (about 230 MB on a guest stage). `cps3recomp/tools/check_rewind.sh` checks that the game comes out frame for frame as a run
   that simply played on.
+- **Touch controls: turn them off, the stick where the thumb goes down, the menu answers a finger** (#53, from
+  spelunkomp's #40 and #41). **Touch controls** (Game page; Android, Windows, Linux) **Off**: never shown, so a thumb
+  on a handheld PC's or a Steam Deck's screen no longer brings them up mid-match. **Touch movement**: the stick's
+  middle is where the finger goes down, anywhere in the left half of the screen away from the buttons (the new
+  default), or **Fixed** where it is drawn. The open **in-game menu takes a finger** whether the touch controls are
+  on or off: tap a row to choose it and do what a click does, slide up or down to move a row at a time; a finger on
+  the controls' own buttons is still theirs. A laptop's or a Mac's touchpad no longer counts as a touch screen.
+- **Widescreen set in the in-game menu stays set** in the collection: the menu wrote it to the game's own folder's
+  launcher.ini, and the collection's launcher, which keeps it in its own, turned it back at the next start.
+- **Android: Widescreen is on the Features page** with the other features, kept as the in-game menu sets it; the
+  launcher's Display card (Full screen, which a phone always is) is gone there.
+- **Scanlines: OSSC is gone from the Shader choices**: a RetroArch preset made for that box's "Full" aspect, it drew
+  the picture 4:3 with the sides smeared (widescreen most of all). The Shader is now kept by name in settings.ini, so
+  the other choices stay as chosen; a saved OSSC is Off.
 - **Which controller is which player** (the launcher's Controllers page, recomp-common's `[controllers]`): each
   connected gamepad is Automatic, Player 1-4 or Not used, and the game hands out its gamepads that way (again when
   one comes or goes), in place of the first one connected always being player 1's. A Steam Deck's own controls can

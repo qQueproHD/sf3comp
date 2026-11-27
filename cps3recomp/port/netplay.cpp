@@ -125,6 +125,9 @@ namespace {
         if (name == "run_ahead" || name == "custom_colours") {
             return Share::Off; // (custom colours: each player's own library, which the other side has not)
         }
+        if (name.rfind("touch_", 0) == 0) {
+            return Share::Own; // (the touch controls: each player's own screen and thumbs, on the Game page though they are)
+        }
         if (name.rfind("widescreen", 0) == 0 || category == "Game" || category == "Board" || name == "stage") {
             return Share::Host;
         }
