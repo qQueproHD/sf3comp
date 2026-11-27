@@ -647,8 +647,8 @@ int RunWindowed(Port &port) {
     TouchControls touch;
     std::vector<uint32_t> touchPicture;
     // The open menu answers a finger itself, the touch controls on or off (with them off and no gamepad, it is the only
-    // way back to them): a finger put down on it chooses the row under it, lifted where it went down does what a click
-    // does there, and slid up or down moves through the rows a row at a time. A finger on one of the touch controls'
+    // way back to them): a finger put down on it and lifted where it went down does what a click does on the row under
+    // it, and slid up or down moves through the rows a row at a time. A finger on one of the touch controls'
     // buttons is still theirs (Menu closes it, the first two choose and go back). What it chose is done in the loop,
     // after the events (menuTaps)
     std::vector<recomp::Menu::Chosen> menuTaps;
@@ -669,8 +669,9 @@ int RunWindowed(Port &port) {
             if (port.net || !port.menu.IsOpen() || touch.OnButton(x, y)) {
                 return false;
             }
+            // (not chosen yet: choosing a row can scroll the list, and the lift's click, by where the rows were last
+            // drawn, would then land on another row)
             menuFinger = {e.tfinger.fingerID, true, false, x, y, y};
-            tell(recomp::MenuMouse::Move);
             return true;
         }
         if (!menuFinger.down || e.tfinger.fingerID != menuFinger.id) {
