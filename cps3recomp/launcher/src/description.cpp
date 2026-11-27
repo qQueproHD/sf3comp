@@ -254,7 +254,13 @@ launcher::Description describe_game(const GameInfo& game) {
     d.check_on_thread = true; // (reading 80 MB and finding the cipher's keys takes a moment)
     d.find_nearby = [game](const std::filesystem::path& folder) { return rom_set_nearby(game, folder); };
     d.candidates = [game](const std::filesystem::path& folder) { return rom_set_candidates(game, folder); };
+#ifdef __ANDROID__
+    // (Android: no first-page switches. Full screen is all a phone has, and the features game.cfg puts beside it are
+    // on the Features page there, the game's settings.ini keeping them: runtime/game.h, kFeatureFirstPage)
+    const std::vector<FeatureSwitch> switches;
+#else
     const std::vector<FeatureSwitch> switches = feature_switches(game.display);
+#endif
     const std::string guests = game.guests ? game.guests : "";
     d.arguments = [switches, guests](const launcher::Launch& launch) {
         std::vector<std::string> args = {"--rom", launch.file, "--eeprom", (launch.folder / "saves" / "eeprom.bin").string(),
@@ -310,7 +316,9 @@ launcher::Description describe_game(const GameInfo& game) {
     d.online.game = game.id;
     d.online_page = true; // (hosting, joining, the lobby and the waiting room on a page of their own, after Game)
 #endif
+#ifndef __ANDROID__
     d.display = {{"fullscreen", "Full screen", "F11 switches while playing.", false, nullptr}};  // (a window unless asked)
+#endif
     for (const FeatureSwitch& one : switches) {
         d.display.push_back({keep(one.name), keep(one.title), keep(one.detail), false, nullptr});
     }

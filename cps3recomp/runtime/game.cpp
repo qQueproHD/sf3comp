@@ -80,6 +80,8 @@ std::vector<recomp::FeatureInfo> FeatureList() {
     for (const Feature &feature : TheGame().features) {
         recomp::FeatureInfo info{feature.name, feature.category, feature.title, feature.description, feature.flags, {}};
         info.choices.assign(feature.choices.begin(), feature.choices.end());
+        info.ids.assign(feature.ids.begin(), feature.ids.end());
+        info.numbered.assign(feature.numbered.begin(), feature.numbered.end());
         list.push_back(info);
     }
     return list;
@@ -243,20 +245,30 @@ int SlowMotion() {
 namespace {
 // A feature whose switch is on the launcher's first page: that switch too, in launcher.ini beside settings.ini, or
 // the launcher would turn it back the next time the game is started
+// (until 2026-11-26 always the one beside settings.ini: in a collection, whose launcher keeps the switches in its own
+// folder, a game's widescreen chosen in the menu was turned back at the next start)
+std::string g_launcherIni, g_launcherSection = "video";
 void KeepFirstPage(const char *name, bool on) {
     for (const Feature &feature : TheGame().features) {
         if ((feature.flags & kFeatureFirstPage) && !strcmp(feature.name, name)) {
-            const std::string launcherIni = (std::filesystem::path(g_settingsPath).parent_path() / "launcher.ini").string();
-            if (std::filesystem::exists(launcherIni)) {
+            const std::string launcherIni = !g_launcherIni.empty() ? g_launcherIni
+                                                                   : (std::filesystem::path(g_settingsPath).parent_path() / "launcher.ini").string();
+            std::error_code error;
+            if (std::filesystem::exists(launcherIni, error)) {
                 recomp::Ini prefs(launcherIni);
                 prefs.load();
-                prefs.set("video", name, on ? "1" : "0");
+                prefs.set(g_launcherSection, name, on ? "1" : "0");
                 prefs.save();
             }
         }
     }
 }
 } // namespace
+
+void SetLauncherSwitches(const std::string &launcherIni, const std::string &section) {
+    g_launcherIni = launcherIni;
+    g_launcherSection = section;
+}
 
 void SetFeature(const char *name, bool on) {
     SetFeatureValue(name, on ? 1 : 0);

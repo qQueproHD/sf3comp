@@ -9,6 +9,13 @@
   default), or **Fixed** where it is drawn. The open **in-game menu takes a finger** whether the touch controls are
   on or off: tap a row to choose it and do what a click does, slide up or down to move a row at a time; a finger on
   the controls' own buttons is still theirs. A laptop's or a Mac's touchpad no longer counts as a touch screen.
+- **Widescreen set in the in-game menu stays set** in the collection: the menu wrote it to the game's own folder's
+  launcher.ini, and the collection's launcher, which keeps it in its own, turned it back at the next start.
+- **Android: Widescreen is on the Features page** with the other features, kept as the in-game menu sets it; the
+  launcher's Display card (Full screen, which a phone always is) is gone there.
+- **Scanlines: OSSC is gone from the Shader choices**: a RetroArch preset made for that box's "Full" aspect, it drew
+  the picture 4:3 with the sides smeared (widescreen most of all). The Shader is now kept by name in settings.ini, so
+  the other choices stay as chosen; a saved OSSC is Off.
 - **Which controller is which player** (the launcher's Controllers page, recomp-common's `[controllers]`): each
   connected gamepad is Automatic, Player 1-4 or Not used, and the game hands out its gamepads that way (again when
   one comes or goes), in place of the first one connected always being player 1's. A Steam Deck's own controls can
