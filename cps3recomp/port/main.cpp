@@ -182,14 +182,21 @@ void RegisterPortFeatures() {
                                   "The picture drawn through one of RetroArch's shaders. CRT: a curved arcade monitor. CRT "
                                   "Lottes and CRT Guest: flat monitors, sharp and bright. CRT Royale: the closest to a real "
                                   "monitor's glass and the slowest. CRT Light: lines and a faint mask, for a slow computer. "
-                                  "Scanlines: the lines alone, light, strong, as an OSSC draws them, or dark (a black line "
-                                  "between each two, best with Whole pixels). xBRZ and ScaleFX: the pixels' edges made smooth "
+                                  "Scanlines: the lines alone, light, strong, or dark (a black line between each two, best "
+                                  "with Whole pixels). xBRZ and ScaleFX: the pixels' edges made smooth "
                                   "lines and curves. Your own: the first .slangp preset in the shaders folder beside the "
                                   "game's settings. The launcher chooses which of these the menu goes through. The picture's "
                                   "shape and size stay as set; the shader draws its pixels in place of Scaling.",
                                   kFeatureMenuChoices,
                                   {"Off", "CRT", "CRT Lottes", "CRT Royale", "CRT Guest", "CRT Light", "Scanlines: light",
-                                   "Scanlines: strong", "Scanlines: OSSC", "Scanlines: dark", "xBRZ", "ScaleFX", "Your own"}});
+                                   "Scanlines: strong", "Scanlines: dark", "xBRZ", "ScaleFX", "Your own"},
+                                  // (kept by name since OSSC's scanlines were taken out on 2026-11-26: a RetroArch preset
+                                  // for that box's "Full" aspect, it drew the picture 4:3 with the sides smeared; a saved
+                                  // OSSC is Off)
+                                  {"off", "crt", "crt_lottes", "crt_royale", "crt_guest", "crt_light", "scanlines_light",
+                                   "scanlines_strong", "scanlines_dark", "xbrz", "scalefx", "own"},
+                                  {"off", "crt", "crt_lottes", "crt_royale", "crt_guest", "crt_light", "scanlines_light",
+                                   "scanlines_strong", "", "scanlines_dark", "xbrz", "scalefx", "own"}});
     // (zoom: the camera, port/zoom.h, from the menu as well as the zoom's buttons; for this run only, as they are)
     if (Zoom::Possible()) {
         TheGame().features.push_back({"zoom", "Display", "Zoom",
@@ -435,6 +442,20 @@ bool Port::Init(std::string &error) {
         };
     }
     LoadFeatures(opt.settingsPath, opt.features);
+    if (std::filesystem::path launcher = LauncherFolder(); !launcher.empty() && !opt.settingsPath.empty()) {
+        // (the launcher's first-page switches, which the menu changes too: a collection's are in its own folder. Only
+        // for the settings.ini the launcher gives, in the game's folder beside it: a check's own settings never
+        // change the player's launcher)
+        if (launcher.filename().empty()) {
+            launcher = launcher.parent_path(); // (SDL's folder ends in a separator)
+        }
+        const bool collection = InCollection();
+        const std::filesystem::path gameFolder = collection ? launcher.parent_path() / std::filesystem::u8path(recomp::FolderName(GAME_NAME)) : launcher;
+        std::error_code error;
+        if (std::filesystem::equivalent(TextPath(opt.settingsPath).parent_path(), gameFolder, error)) {
+            SetLauncherSwitches(PathText(launcher / "launcher.ini"), collection ? "video." GAME_ID : "video");
+        }
+    }
     // The game's SH-2 code: translated (native), the interpreter run the same way block by block (free: the
     // translation's reference), or the interpreter an instruction at a time (interp)
     if (opt.cpu.empty()) {
@@ -478,7 +499,7 @@ namespace {
     const char *const kShaderPresets[] = {
         "crt/crt-geom-mini.slangp", "crt/crt-lottes.slangp", "crt/crt-royale.slangp", "crt/crt-guest-advanced-fast.slangp",
         "crt/zfast-crt.slangp", "scanlines/scanline-fract.slangp", "pixel-art-scaling/sharp-bilinear-scanlines.slangp",
-        "scanlines/ossc.slangp", "scanlines/integer-scaling-scanlines.slangp",
+        "scanlines/integer-scaling-scanlines.slangp",
         "edge-smoothing/xbrz/xbrz-freescale-multipass.slangp", "edge-smoothing/scalefx/scalefx.slangp",
     };
     constexpr int kYourOwnShader = 1 + static_cast<int>(std::size(kShaderPresets));
