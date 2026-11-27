@@ -22,14 +22,14 @@ How the two meet:
 
 A host that asks for it (`--net-list`, with `--net-name`) is also in the **lobby**: a Durable Object keeping every
 game's listed matches whose host has asked about them in the last 25 seconds, until someone joins, in memory only
-(a match tells it at most every 10 seconds).
+(a match tells it at most every 3 seconds).
 `GET /v1/lobby?protocol=N` lists them all, each with its game (the launcher's Online page); `GET /v1/lobby/GAME?protocol=N`
 one game's (a game page's Online card).
 
 The **waiting room** is the players whose launcher has its Online page open: a Durable Object (Room) they check in at
-every 10 seconds, or 20 while the launcher isn't the window in front (`POST /v1/room`, with a name, the games they
+every 3 seconds, or 10 while the launcher isn't the window in front (`POST /v1/room`, with a name, the games they
 have and whether they can be invited; with `lobby: true` the answer has every game's open matches too, so the Online
-page asks once), gone 30 seconds after the last check-in, and kept in memory only (a room let go is made again by the next check-ins). Each is
+page asks once), gone 15 seconds after the last check-in, and kept in memory only (a room let go is made again by the next check-ins). Each is
 known by an id the service makes from a secret only their launcher has, and shown by name only. A host can name one
 to invite (`invite` and `from` in `POST /v1/host`): the Match gives the invitation to the room while the host asks
 about its match, and takes it back when someone joins; a player declines with `POST /v1/room/decline`, which the

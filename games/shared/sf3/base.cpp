@@ -175,6 +175,10 @@ void RegisterGame() {
     game.beforeFrame = BeforeFrame;
     game.frame = TrainingAfterFrame;
     game.state = State;
+    // (both players back to character select online, Port::OnlineReselect: in at character select, as training's way
+    // there has it)
+    game.joined = [](int p) { return Ram8(TheFacts().selectState[p]) >= 2; };
+    game.credits = f.credits;
     if (TheFacts().stage) {
         game.pages.push_back({"Stage", "", "Where the fights are: any of the game's stages.", true});
     }
