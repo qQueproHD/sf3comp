@@ -405,14 +405,15 @@ struct Port {
     bool connecting = false; // (the other side not found yet: a window shows the wait)
     bool leaving = false;    // (online, waiting: Esc asked whether to leave; said on the screen until answered)
     bool cameIn = false;
-    // Online: each side's win streak (matches won in a row, the other player's against them), counted in the fights
-    // both players have pressed Start for (fight/battle.h: the round's result, and the rounds a match is won with); said
-    // under the life bars from two on. Each player's machine counts the same, both running the same game.
+    // (this side's player has pressed Start in the match: "PRESS START TO JOIN" is said until then)
     bool otherIn = false;
-    int streak[2] = {}, roundsWon[2] = {};
-    bool roundCounted = false;
-    int roundQuiet = 0;
-    void Streaks();     // (this side's player has pressed Start in the match: "PRESS START TO JOIN" is said until then)
+    // Online: each side's win streak (matches won in a row, the other player's against them), by the board's player:
+    // the matches the set counts (Netplay::Set, from Game::matchResult on confirmed frames), said under the life bars
+    // from two on. Each player's machine counts the same, both running the same game. Started again when the host
+    // swaps the sides.
+    int streak[2] = {};
+    void OnlineWon(int side);
+    void OnlineSidesSwapped();
     // Online: the chat (issue #196). Each line is said on the picture for a while (`until`, a tick), the newest
     // lowest; and the line this side's player is typing, while they type one (the frontend's: Enter sends it, Esc
     // puts it away; the keyboard is the chat's meanwhile, not the game's)
@@ -451,7 +452,14 @@ struct Port {
     // `at`: "mode=N:SEED" (the host's: Game::startOnline) and "row=value" (a player's own fighters and their super arts on
     // the Tag team battle page: player 1's rows the host's, player 2's the other's), commas between. A mode starts with
     // each row as the events before its frame left it (onlinePickLog: a rollback may have run a later pick already)
-    void OnlineEvent(int player, const std::string &text, uint64_t at);
+    // (`player`: the sender's machine, 0 the host's; `side`: the board's player that machine plays at that frame, whose
+    // fighters' rows it picks: Swap sides moves them)
+    void OnlineEvent(int player, int side, const std::string &text, uint64_t at);
+    // Both players back to character select (netplay.h, OnlineReselect): the asks, and the board's way there after
+    // them (Step), kept with the game's state in a rollback (Netplay::Kept)
+    OnlineReselect onlineReselect;
+    bool OnlineReselectHere() const;
+    void OnlineReselectBoot();
     std::map<std::string, std::map<uint64_t, int>> onlinePickLog;
     std::map<std::string, int> onlinePickBase; // (each row as it was before its first event)
     // The host's pause for choosing: while the host's match menu is open the game stands still for both ("setup=1",
@@ -483,6 +491,7 @@ struct Port {
     void OnlineCommand(size_t index);
     void LeaveQuestion(unsigned pressed);
     std::vector<int> onlineModes;           // (the menu's commands' modes, in its order)
+    std::vector<std::string> onlineMore;    // (and the commands after them: "swap", "reselect")
     std::vector<std::string> onlineRows;    // (the menu's features' rows: the game's features they stand for)
     std::map<std::string, int> onlinePicks; // (this player's picks as chosen, before their events have run)
     int onlineTeamSize = -1;                // (team_size value the open online menu was built with)

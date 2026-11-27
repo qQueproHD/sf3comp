@@ -68,6 +68,10 @@ In a 3rd Strike match, Esc opens the in-game menu. The host's pauses the game fo
 player's too: each picks their own team's fighters and their super arts, the other player says **Ready**, and the host
 starts the **tag team battle** (or goes back to versus) from its Online match page.
 
+In 3rd Strike the host can also choose a **set** (FT3, FT5 or FT10) under Host on the Online page: the **score** is at
+the top, the win streaks under the life bars, and the set's winner is shown before both go back to the launcher. The
+host can **swap sides** without leaving, and in every game both players can go **back to character select** together.
+
 ## Replays
 
 Every match you play, offline or online, is kept as a small file and listed on the in-game menu's Replays page. A

@@ -136,6 +136,15 @@ struct Game {
     // rows as the host has them, the players' own fighters as their events set them). False: not this game's. Not
     // given: only Versus online.
     bool (*startOnline)(Machine &machine, int mode, uint32_t seed) = nullptr;
+    // Online, the set's score and the win streaks (port/first_to.h, counted on the frames both machines have the real
+    // controls for): the match between two people now: -1 none (not a fight, one against the computer, or a mode of
+    // the sources' own), 0 one being fought, 1 or 2 that player has won it. Not given: no score, no sets.
+    int (*matchResult)() = nullptr;
+    // Online, both players back to character select (Port::OnlineReselect): the board started again (startOnline's
+    // Versus, or the board's reset), then coins (to `credits`, a byte, two) and Starts until both players have come in (joined). Not given:
+    // no such choice.
+    bool (*joined)(int player) = nullptr;
+    uint32_t credits = 0;
     // With the board's timing (the port's arcade_timing feature) the game's own code runs in place of the readable
     // rewrites, whose time is only what their originals' takes without the board's waits: unless this says the
     // rewrites are needed now (training mode, a mode of the sources' own, widescreen, a cheat that works inside

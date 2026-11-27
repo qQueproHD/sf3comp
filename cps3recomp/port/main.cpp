@@ -255,6 +255,21 @@ void RegisterPortFeatures() {
                                   "During an online match, the time a packet takes to the other player and back, at the bottom of "
                                   "the picture (\"PING 42 ms\").",
                                   kFeatureEnhanced});
+    // (the network readout: Port::Shown, at the top right in the small letters)
+    TheGame().features.push_back({"online_stats", "Online", "Network stats",
+                                  "During an online match, in small letters at the right, under player 2's life bar: the ping and its "
+                                  "jitter (how much it wavers), the input delay, and the rollbacks of the last second (how many, "
+                                  "and the most frames one went back).",
+                                  kFeatureEnhanced});
+    // (the set's format: the host's, Netplay::BeginSet; a game that says who wins its matches, Game::matchResult)
+    if (TheGame().matchResult) {
+        TheGame().features.push_back({"online_first_to", "Online", "Set format",
+                                      "The host chooses Casual, or a set of first to 3, 5 or 10 games, before connecting. Both "
+                                      "players see the score at the top of the picture (in Casual, the games each has won). After "
+                                      "both confirm the winner of a set, the result is shown briefly, then both return to the "
+                                      "launcher. Offline play is unchanged.",
+                                      0, {"Casual", "FT3", "FT5", "FT10"}});
+    }
     if (TheGame().fighting) {
         TheGame().features.push_back({"match_replays", "Replays", "Keep my matches",
                                       "Every match you play, offline or online, is kept as a small file (the latest 40), and "
@@ -323,8 +338,8 @@ void RegisterPortFeatures() {
                                   nullptr});
     // (names: shown unless hidden, whatever the preset, so a switch that hides them)
     TheGame().features.push_back({"online_hide_names", "Online", "Hide names",
-                                  "During an online match, each player's name is under their life bar (the name each gave on "
-                                  "the launcher's Online page): this hides them.",
+                                  "During an online match, each player's name is under their life bar, or beside the score at the "
+                                  "top in a game that keeps one (the name each gave on the launcher's Online page): this hides them.",
                                   0});
     TheGame().features.push_back({"online_delay", "Online", "Input delay",
                                   "During an online match, how many frames each player's own controls are held back, at the bottom "
@@ -1171,7 +1186,9 @@ bool Port::Tick() {
             if (!net->ended.empty()) {
                 // (the other side gone: a window waits for them again; the host's leaving ends the joining side's)
                 const bool again = !opt.headless && (net->Hosting() ? net->left || net->lost : net->lost);
-                if (hostedFromMenu) {
+                if (net->SetFinished()) {
+                    quit = true; // (the set won and agreed: back to the launcher that started the game)
+                } else if (hostedFromMenu) {
                     BackToSolo(again); // (the other side gone: still hosted, the player's own game again)
                 } else if (again) {
                     Again(net->ended);
@@ -1421,6 +1438,15 @@ void Port::ShownOver(std::vector<uint32_t> &pixels, std::vector<SDL_Rect> *panel
         if (!cameIn) {
             status("PRESS START TO JOIN", said++ * 14);
         }
+        if (net->Set().Winner() >= 0) {
+            const std::string who = net->Name(net->MachineAt(net->Set().Winner()));
+            std::string result = (who.empty() ? "PLAYER " + std::to_string(net->Set().Winner() + 1) : who) + " WINS THE FT" +
+                                 std::to_string(net->Set().Target()) + " SET";
+            for (char &c : result) {
+                c = static_cast<char>(toupper(static_cast<unsigned char>(c)));
+            }
+            status(result.c_str(), said++ * 14);
+        }
     }
     // (--net-arcade: the host playing while it waits; the wait, and the match's code to give, at the bottom)
     if (net && connecting && net->Arcade()) {
@@ -1469,15 +1495,81 @@ void Port::ShownOver(std::vector<uint32_t> &pixels, std::vector<SDL_Rect> *panel
                 panels->push_back({static_cast<int>(x) - 3, static_cast<int>(y) - 2, static_cast<int>(width) + 7, 12});
             }
         };
+        // (the score: a set's, or in Casual the games each side has won, in a game that says who wins its matches:
+        // FirstTo::Counting; along the very top, with the players' names beside it)
+        const bool strip = net->Set().Counting();
+        if (strip) {
+            auto small = [&](float x, const std::string &text, recomp::text::Color colour) {
+                canvas.Text(std::floor(x), 2, 1, 0, colour, text.c_str());
+            };
+            const std::string left = std::to_string(net->Set().Score(0));
+            const std::string format = net->Set().Target() ? "FT" + std::to_string(net->Set().Target()) : "-";
+            const std::string right = std::to_string(net->Set().Score(1));
+            const float leftWidth = recomp::text::TextWidth(left.c_str(), 1);
+            const float formatWidth = recomp::text::TextWidth(format.c_str(), 1);
+            const float rightWidth = recomp::text::TextWidth(right.c_str(), 1);
+            const float centre = (across - formatWidth) / 2.0f;
+            const float leftAt = centre - 6 - leftWidth, rightAt = centre + formatWidth + 6;
+            float x0 = leftAt - 3, x1 = rightAt + rightWidth + 3;
+            std::string names[2];
+            float nameAt[2] = {};
+            if (!FeatureOn("online_hide_names")) {
+                for (int side = 0; side < 2; side++) {
+                    names[side] = net->Name(net->MachineAt(side));
+                    if (names[side].empty()) {
+                        names[side] = "Player " + std::to_string(side + 1);
+                    }
+                    const float width = recomp::text::TextWidth(names[side].c_str(), 1);
+                    nameAt[side] = side == 0 ? leftAt - 9 - width : rightAt + rightWidth + 9;
+                    x0 = std::min(x0, nameAt[side] - 3);
+                    x1 = std::max(x1, nameAt[side] + width + 3);
+                }
+            }
+            canvas.Fill(x0, 0, x1 - x0, 11, {20, 22, 30, 220});
+            small(leftAt, left, {0, 220, 220, 255});
+            small(centre, format, {255, 210, 80, 255});
+            small(rightAt, right, {0, 220, 220, 255});
+            for (int side = 0; side < 2; side++) {
+                if (!names[side].empty()) {
+                    small(nameAt[side], names[side], {255, 255, 255, 255});
+                }
+            }
+            if (panels) {
+                panels->push_back({static_cast<int>(x0), 0, static_cast<int>(x1 - x0) + 1, 11});
+            }
+        }
+        // (each side's name under its life bar, where the score's strip hasn't it, and its win streak)
         for (int side = 0; side < 2; side++) {
             float y = 38.0f;
-            const std::string name = net->Name(side);
-            if (!FeatureOn("online_hide_names") && !name.empty()) {
+            const std::string name = net->Name(net->MachineAt(side));
+            if (!strip && !FeatureOn("online_hide_names") && !name.empty()) {
                 under(side, y, name, {255, 255, 255, 255});
                 y += 12;
             }
             if (streak[side] >= 2) {
                 under(side, y, "STREAK " + std::to_string(streak[side]), {255, 210, 80, 255});
+            }
+        }
+        // The network readout (online_stats), at the right under the life bar, in the small letters: the ping
+        // and its jitter, the input delay (both players', the host's choice), and the last second's rollbacks
+        if (notices && FeatureOn("online_stats") && net->Silent() <= 1000) {
+            int count = 0, most = 0;
+            net->Rollbacks(count, most);
+            const std::string lines[3] = {"PING " + std::to_string(net->Ping()) + " MS  JITTER " + std::to_string(net->Jitter()) + " MS",
+                                          "P" + std::to_string(net->SideOf(net->Local()) + 1) + " YOU  DELAY " + std::to_string(net->Delay()) +
+                                              "  P" + std::to_string(net->SideOf(1 - net->Local()) + 1) + "  DELAY " + std::to_string(net->Delay()),
+                                          "ROLLBACK " + std::to_string(most) + "F  " + std::to_string(count) + "/S"};
+            // (under player 2's life bar, and its name and streak: the strip and the bars at the top are the game's to show)
+            float y = 52.0f;
+            for (const std::string &text : lines) {
+                const float width = recomp::text::SmallTextWidth(text.c_str(), 1) - 1;
+                const float x = across - 3 - width;
+                canvas.Fill(x - 2, y, width + 4, 7, {20, 22, 30, 200});
+                canvas.SmallText(x, y + 1, 1, {255, 255, 255, 255}, text.c_str());
+                if (panels) {
+                    panels->push_back({static_cast<int>(x) - 2, static_cast<int>(y), static_cast<int>(width) + 5, 7});
+                }
+                y += 7;
             }
         }
         // The chat: its lines at the left, above the super gauges, the newest lowest, and the line being typed under them
@@ -2279,6 +2371,9 @@ void Port::PutBackState(const std::vector<uint8_t> &data, bool inMemory) {
 void Port::Step(const uint16_t *players) {
     SoundtrackFollow();
     memcpy(machine->players, players, sizeof(machine->players));
+    if (onlineReselect.boot >= 0) {
+        OnlineReselectBoot(); // (both players on their way back to character select: the controls this does)
+    }
     if (TheGame().beforeFrame) {
         TheGame().beforeFrame(*machine);
     }
@@ -2543,34 +2638,17 @@ void Port::RunFramesAhead(int ahead, const uint16_t *players, void (*shown)(Port
     memcpy(machine->players, were, sizeof(were));
 }
 
-// Online: a round's result, the frame it comes (once: a second's quiet after it before the next, so that a frame run
-// again in a rollback is not counted twice), and a match won when a player has won its rounds
-void Port::Streaks() {
-    const int result = -1; // (no round results yet: the fight module is not here yet)
-    if (result < 0) {
-        return; // (not a fighting game)
-    }
-    if (result == 0) {
-        if (++roundQuiet >= 60) {
-            roundCounted = false;
-        }
-        return;
-    }
-    roundQuiet = 0;
-    if (roundCounted) {
-        return;
-    }
-    roundCounted = true;
-    if (result == 3 || !cameIn || !otherIn) {
-        return; // (a draw; or a fight against the computer, before both have come in)
-    }
-    const int winner = result - 1;
-    if (++roundsWon[winner] >= 2) {
-        streak[winner]++;
-        streak[1 - winner] = 0;
-        roundsWon[0] = roundsWon[1] = 0;
-        fprintf(stderr, "online: player %d won the match (%d in a row)\n", winner + 1, streak[winner]);
-    }
+// Online: a match the set has counted (on a confirmed frame, Netplay::Frame): the winner's streak one more, the
+// other's over
+void Port::OnlineWon(int side) {
+    streak[side]++;
+    streak[1 - side] = 0;
+    fprintf(stderr, "online: player %d won the match (%d in a row)\n", side + 1, streak[side]);
+}
+
+// ... and the host's Swap sides: the streaks were the other side's people's
+void Port::OnlineSidesSwapped() {
+    streak[0] = streak[1] = 0;
 }
 
 // Online play (netplay.h): the other side found and agreed with before the first frame; with a window, a step a tick
@@ -2722,6 +2800,7 @@ void Port::StopHosting() {
 
 void Port::BackToSolo(bool stillHosting) {
     ReplayEnd();
+    onlineReselect = {}; // (the way back to character select, if it was on its way: the match's, over)
     Netplay::Settings settings = opt.net;
     if (net) {
         if (!net->code.empty()) {
@@ -2772,9 +2851,10 @@ namespace {
         }
         return nullptr;
     }
-    // A player's own rows on the Tag team battle page (player 1's the host's, plus team_size; player 2's the other side's)
-    bool OwnRow(int player, const std::string &row) {
-        return row.rfind(player == 0 ? "team_1_" : "team_2_", 0) == 0 || (player == 0 && row == "team_size");
+    // A player's own rows on the Tag team battle page: the board's player 1's or player 2's (the host's side, or the
+    // other's, unless the host has swapped the sides), and the host's team_size
+    bool OwnRow(int player, int side, const std::string &row) {
+        return row.rfind(side == 0 ? "team_1_" : "team_2_", 0) == 0 || (player == 0 && row == "team_size");
     }
     bool TagTeamOnline() {
         return TheGame().startOnline && FindFeature("team_size") && FindFeature("team_1_1");
@@ -2851,7 +2931,34 @@ void Port::OnlineSetupFrame() {
     }
 }
 
-void Port::OnlineEvent(int player, const std::string &text, uint64_t at) {
+bool Port::OnlineReselectHere() const {
+    return net && !connecting && TheGame().joined;
+}
+
+// The board started again for both players' character select: coins, then the Starts, until both are in (the players'
+// own controls left out meanwhile). As training's way there (fight/session.cpp, Boot), but a frame of the match each,
+// the same on both machines.
+void Port::OnlineReselectBoot() {
+    constexpr int32_t kMost = 4000; // (frames: given up after them)
+    uint16_t &one = machine->players[0], &two = machine->players[1];
+    one = two = 0;
+    if ((TheGame().joined(0) && TheGame().joined(1)) || ++onlineReselect.boot > kMost) {
+        fprintf(stderr, "online: %s after %d frames\n", onlineReselect.boot > kMost ? "not both at character select" : "both at character select",
+                onlineReselect.boot);
+        onlineReselect.boot = -1;
+        return;
+    }
+    const bool press = onlineReselect.boot % 16 < 6;
+    if (TheGame().credits && Ram8(TheGame().credits) < 2 && !FeatureOn("free_play")) {
+        one = press ? kCoin : 0;
+    } else if (!TheGame().joined(0)) {
+        one = press ? kStart : 0;
+    } else {
+        two = press ? kStart : 0;
+    }
+}
+
+void Port::OnlineEvent(int player, int side, const std::string &text, uint64_t at) {
     for (size_t from = 0; from < text.size();) {
         const size_t comma = std::min(text.find(',', from), text.size());
         const std::string item = text.substr(from, comma - from);
@@ -2861,7 +2968,19 @@ void Port::OnlineEvent(int player, const std::string &text, uint64_t at) {
             continue;
         }
         const std::string name = item.substr(0, eq);
-        if (name == "setup" && player == 0) {
+        if (name == "reselect" && (player == 0 || player == 1) && OnlineReselectHere()) {
+            onlineReselect.asked[player] = atoi(item.c_str() + eq + 1) != 0;
+            if (onlineReselect.asked[0] && onlineReselect.asked[1]) {
+                fprintf(stderr, "online: both asked to pick characters again: the board starts again at frame %llu\n",
+                        static_cast<unsigned long long>(at));
+                // (the mode ended, the board started again: Back to Versus's)
+                if (!TheGame().startOnline || !TheGame().startOnline(*machine, 0, 1)) {
+                    machine->Reset();
+                }
+                onlineReselect = {};
+                onlineReselect.boot = 0;
+            }
+        } else if (name == "setup" && player == 0) {
             onlineSetupLog[at] = atoi(item.c_str() + eq + 1) != 0;
         } else if (name == "ready" && player == 1) { // (the other player's: their Ready, Port::onlineReadyLog)
             onlineReadyLog[at] = atoi(item.c_str() + eq + 1) != 0;
@@ -2886,7 +3005,7 @@ void Port::OnlineEvent(int player, const std::string &text, uint64_t at) {
                 SetFeatureForNow(row.c_str(), value);
             }
             TheGame().startOnline(*machine, mode, seed);
-        } else if (OwnRow(player, name)) {
+        } else if (OwnRow(player, side, name)) {
             const Feature *feature = FindFeature(name);
             const int value = atoi(item.c_str() + eq + 1);
             if (feature && value >= 0 && value < static_cast<int>(std::max<size_t>(feature->choices.size(), 2))) {
@@ -2915,8 +3034,10 @@ void Port::OpenOnlineMenu(bool keep) {
         return;
     }
     const int me = net->Local();
+    const int mySide = net->SideOf(me); // (the board's player this machine plays: the host's 1 unless swapped)
     Menu::Online online;
     onlineModes.clear();
+    onlineMore.clear();
     onlineRows.clear();
     if (TagTeamOnline()) {
         const auto sizeIt = onlinePicks.find("team_size");
@@ -2942,7 +3063,7 @@ void Port::OpenOnlineMenu(bool keep) {
         const int size = sizeVal == 1 ? 3 : 2;
         static const char *const kOrder[3] = {"first", "second", "third"};
         for (int n = 0; n < size; n++) {
-            const std::string row = "team_" + std::to_string(me + 1) + "_" + std::to_string(n + 1);
+            const std::string row = "team_" + std::to_string(mySide + 1) + "_" + std::to_string(n + 1);
             for (const std::string &feature : {row, row + "_art"}) {
                 const Feature *found = FindFeature(feature);
                 if (!found) {
@@ -2971,6 +3092,25 @@ void Port::OpenOnlineMenu(bool keep) {
                                        "then. Changing a fighter takes it back.",
                                        {"Not yet", "Ready"}});
         }
+    }
+    // (after the modes: the host's Swap sides, and either player's Pick characters again)
+    if (net->Hosting()) {
+        onlineMore.push_back("swap");
+        online.commands.push_back({Menu::kOnlinePage, mySide == 0 ? "Swap sides (you play player 2)" : "Swap sides (you play player 1)",
+                                   "Swaps who plays player 1 and player 2 now, without leaving the match: player 1 first. Each "
+                                   "player keeps their own controller, and their fighters' picks are the side's. The set's score "
+                                   "and the win streaks start again from 0-0."});
+    }
+    if (OnlineReselectHere()) {
+        const bool mine = onlineReselect.asked[me] != 0, theirs = onlineReselect.asked[1 - me] != 0;
+        onlineMore.push_back("reselect");
+        online.commands.push_back({Menu::kOnlinePage,
+                                   mine     ? "Pick characters again: asked (choose to take it back)"
+                                   : theirs ? "Pick characters again: the other player asked, choose to agree"
+                                            : "Pick characters again",
+                                   "Both players back to the character select, the winner too: once the other player chooses this "
+                                   "as well, the game starts again and both of you are put in to choose. The other player is told "
+                                   "that you asked. The set's score stays as it is."});
     }
     online.value = [this](size_t row) {
         if (row >= onlineRows.size()) {
@@ -3006,6 +3146,16 @@ void Port::OpenOnlineMenu(bool keep) {
 }
 
 void Port::OnlineCommand(size_t index) {
+    if (net && index >= onlineModes.size() && index - onlineModes.size() < onlineMore.size()) {
+        const std::string &what = onlineMore[index - onlineModes.size()];
+        if (what == "swap" && net->Hosting()) {
+            net->Command(Netplay::kSwap);
+        } else if (what == "reselect") {
+            net->Command(onlineReselect.asked[net->Local()] ? "reselect=0" : "reselect=1");
+        }
+        menu.Close();
+        return;
+    }
     if (net && index < onlineModes.size() && onlineModes[index] != 0 && TagTeamOnline() && !OnlineOtherReady()) {
         // (the other player still choosing: started when they say Ready, the menu left open and the game paused)
         onlinePendingMode = onlineModes[index];
@@ -3056,11 +3206,19 @@ void Port::HearEvents() {
                     }
                     said = value ? "The host paused the game: choose your team, then Ready" : "The game goes on";
                 }
+            } else if (row == "reselect" && (player == 0 || player == 1) && OnlineReselectHere()) {
+                const bool own = player == net->Local();
+                said = value ? who + (own ? " asked" : " asks") + " to pick characters again" +
+                                   (own ? " (when the other player agrees)" : ": Esc, Pick characters again to agree")
+                             : who + " took back the ask to pick characters again";
+            } else if (row == "swap" && player == 0) {
+                // (said as it is made: the sides are the other way round from the event's frame on)
+                said = who + " swapped the sides: you are player " + std::to_string(2 - net->SideOf(net->Local())) + " now";
             } else if (row == "ready" && player == 1) {
                 said = who + (player == net->Local() ? (value ? " are ready" : " are choosing") : (value ? " is ready" : " is choosing"));
             } else if (row == "mode" && player == 0 && value >= 0 && value < 3) {
                 said = who + (value == 0 ? " went back to Versus" : std::string(" started ") + kOnlineModes[value]);
-            } else if (const Feature *feature = FindFeature(row); feature && OwnRow(player, row) && value >= 0 &&
+            } else if (const Feature *feature = FindFeature(row); feature && OwnRow(player, net->SideOf(player), row) && value >= 0 &&
                                                                    value < static_cast<int>(feature->choices.size())) {
                 if (row == "team_size") {
                     said = who + " set Tag team to " + feature->choices[value] + " vs " + feature->choices[value];
@@ -3168,8 +3326,9 @@ void Port::Matched() {
     if (net->Arcade()) {
         fprintf(stderr, "online: the match begins after %llu frames of the host's play\n", static_cast<unsigned long long>(frame));
     }
-    streak[0] = streak[1] = roundsWon[0] = roundsWon[1] = 0;
-    roundCounted = false;
+    streak[0] = streak[1] = 0;
+    onlineReselect = {};
+    net->BeginSet(); // (the host's features taken by both: online_first_to among them)
     rejoin.clear();
     onlinePickLog.clear();
     onlinePickBase.clear();
@@ -3334,8 +3493,7 @@ void Port::RunFrame() {
     } else if (net) {
         net->Frame(*this, pressed[0]); // (this side's player plays with player 1's controls)
         cameIn = cameIn || (pressed[0] & kStart);
-        otherIn = otherIn || (machine->players[1 - net->Local()] & kStart);
-        Streaks();
+        otherIn = otherIn || (machine->players[net->SideOf(1 - net->Local())] & kStart);
     } else if (opt.rollbackTest) {
         RollbackFrame(pressed);
     } else {
@@ -4125,7 +4283,8 @@ int main(int argc, char **argv) {
             return 5;
         }
         fprintf(stderr, "online: %s\n", p.net->ended.c_str());
-        if (!p.opt.headless) {
+        // (a finished set closes quietly: the launcher that started the game is still there, waiting for it)
+        if (!p.opt.headless && !p.net->SetFinished()) {
             SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, GAME_NAME, p.net->ended.c_str(), nullptr);
         }
     }
