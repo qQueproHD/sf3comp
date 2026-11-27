@@ -55,6 +55,8 @@ In all three games, from the in-game menu, a fight with no clock that nobody los
 - In 3rd Strike, a **red parry drill**, and the **Evo Moment 37** scenario: Ken on a sliver of health against
   Chun-Li's super art, try after try, with your parries counted.
 - Health and super art gauges refilled, any stage (the other games' too), and save states.
+- **Rewind** through the last half a minute (hold R) and a **practice point** to go back to at once (`]` sets it,
+  Backspace returns), in training or anywhere else offline.
 
 ## Online play
 
