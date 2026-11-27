@@ -23,6 +23,17 @@
   version. The service (`online/`) renews a match's lobby entry every 3 seconds (was 10) and forgets a waiting room
   player 15 seconds after their last check-in (was 30), as the launcher now checks in every 3 to 10 seconds.
 - The launcher's Online page: **Set format** under Host, and its introduction says no code is needed for a listed match.
+- **Fix: the games crashed at start on Windows PCs with Bandicam installed**, even with it closed: its Vulkan
+  capture layer, which Windows loads into every Vulkan program, crashed as the game made its GPU device. The games
+  now leave Bandicam's layer out (OBS capture and the other overlays still work; cps2recomp #446).
+- **A crash leaves its log.** A game's output reached `logs/game.log` only in blocks, so a crash lost it and the
+  launcher's report pointed at an empty log. It is now written as it goes, and on Windows a crash adds where it
+  happened and the calls that led there (the build's unstripped programs, kept in `build/release-windows/symbols/`,
+  and `tools/release/crash_where.sh` name them). `CPS3RECOMP_TEST_CRASH_AT_FRAME=N` crashes a game on purpose to try it.
+- **Windows: fewer antivirus false alarms** (cps2recomp #433). Every program now says what it is (name, version,
+  publisher and a manifest, in its Properties), the games' online play makes its requests itself (WinHTTP, as the
+  launcher already did) instead of starting a hidden `curl.exe`, and the release build signs the programs when it is
+  given a certificate (docs/RELEASING.md); without one, nothing is signed, as before.
 - **Touch controls: turn them off, the stick where the thumb goes down, the menu answers a finger** (#53, from
   spelunkomp's #40 and #41). **Touch controls** (Game page; Android, Windows, Linux) **Off**: never shown, so a thumb
   on a handheld PC's or a Steam Deck's screen no longer brings them up mid-match. **Touch movement**: the stick's

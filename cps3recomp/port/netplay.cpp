@@ -572,63 +572,12 @@ namespace {
             args.push_back(body);
         }
         args.push_back(url);
-#if defined(__ANDROID__)
+#if defined(__ANDROID__) || defined(_WIN32)
         // (Android has no curl to start: the game's activity makes the request, as the launcher's are made there:
-        // recomp-common's run_program, GameActivity.curl)
+        // recomp-common's run_program, GameActivity.curl. Windows: the program makes it itself, with WinHTTP, not
+        // a curl.exe started with no window, which antivirus programs take for a downloader: winhttp_curl.h)
         std::string text;
         const int exitCode = launcher::run_program(launcher::curl_program(), std::vector<std::string>(args.begin() + 1, args.end()), &text);
-#elif defined(_WIN32)
-        // (Windows: curl, a console program, started with no console window; its output through a pipe)
-        std::string command;
-        for (const std::string &arg : args) {
-            std::string quoted = "\"";
-            for (size_t i = 0; i < arg.size(); i++) {
-                size_t slashes = 0;
-                while (i < arg.size() && arg[i] == '\\') {
-                    slashes++, i++;
-                }
-                if (i == arg.size()) {
-                    quoted.append(slashes * 2, '\\');
-                    break;
-                }
-                quoted.append(arg[i] == '"' ? slashes * 2 + 1 : slashes, '\\');
-                quoted += arg[i];
-            }
-            command += (command.empty() ? "" : " ") + quoted + "\"";
-        }
-        SECURITY_ATTRIBUTES inherit{sizeof(inherit), nullptr, TRUE};
-        HANDLE readEnd = nullptr, writeEnd = nullptr;
-        if (!CreatePipe(&readEnd, &writeEnd, &inherit, 0)) {
-            return {0, ""};
-        }
-        SetHandleInformation(readEnd, HANDLE_FLAG_INHERIT, 0);
-        STARTUPINFOA startup{};
-        startup.cb = sizeof(startup);
-        startup.dwFlags = STARTF_USESTDHANDLES;
-        startup.hStdOutput = writeEnd;
-        startup.hStdError = nullptr;
-        startup.hStdInput = nullptr;
-        PROCESS_INFORMATION info{};
-        std::vector<char> commandLine(command.begin(), command.end());
-        commandLine.push_back('\0');
-        const bool started = CreateProcessA(nullptr, commandLine.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr, nullptr, &startup, &info);
-        CloseHandle(writeEnd);
-        std::string text;
-        int exitCode = -1;
-        if (started) {
-            char buffer[4096];
-            DWORD got = 0;
-            while (ReadFile(readEnd, buffer, sizeof(buffer), &got, nullptr) && got > 0) {
-                text.append(buffer, got);
-            }
-            WaitForSingleObject(info.hProcess, INFINITE);
-            DWORD code = 0;
-            GetExitCodeProcess(info.hProcess, &code);
-            exitCode = static_cast<int>(code);
-            CloseHandle(info.hProcess);
-            CloseHandle(info.hThread);
-        }
-        CloseHandle(readEnd);
 #else
         std::vector<const char *> argv;
         for (const std::string &arg : args) {

@@ -1,0 +1,39 @@
+// SPDX-License-Identifier: GPL-3.0-only
+// Copyright (C) 2026 Tommy McLeroy. Part of cps3recomp (sf3comp); from cps2recomp.
+//
+// A Windows program's resources (resources.cmake fills this in for each one): what it is, whose and which version
+// (Properties > Details), and its manifest. A program with none of them, unsigned and new, is what antivirus
+// programs' machine learning takes for malware (Windows Defender's "Program:Win32/Wacapew.A!ml").
+#include <winver.h>
+
+1 VERSIONINFO
+FILEVERSION @RES_VERSION_COMMAS@
+PRODUCTVERSION @RES_VERSION_COMMAS@
+FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+FILEFLAGS 0
+FILEOS VOS_NT_WINDOWS32
+FILETYPE VFT_APP
+FILESUBTYPE VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName", "Tommy McLeroy (github.com/tmcleroy/sf3comp)"
+            VALUE "FileDescription", "@RES_DESCRIPTION@"
+            VALUE "FileVersion", "@RES_VERSION@"
+            VALUE "InternalName", "@RES_NAME@"
+            VALUE "LegalCopyright", "Copyright (C) 2026 Tommy McLeroy. GPL-3.0-only. Not affiliated with Capcom."
+            VALUE "OriginalFilename", "@RES_NAME@.exe"
+            VALUE "ProductName", "SF3comp"
+            VALUE "ProductVersion", "@RES_VERSION@"
+            VALUE "Comments", "Source: https://github.com/tmcleroy/sf3comp"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END
+
+1 24 "@RES_MANIFEST@"
