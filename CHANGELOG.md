@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **Fix: the games crashed at start on Windows PCs with Bandicam installed**, even with it closed: its Vulkan
+  capture layer, which Windows loads into every Vulkan program, crashed as the game made its GPU device. The games
+  now leave Bandicam's layer out (OBS capture and the other overlays still work; cps2recomp #446).
+- **A crash leaves its log.** A game's output reached `logs/game.log` only in blocks, so a crash lost it and the
+  launcher's report pointed at an empty log. It is now written as it goes, and on Windows a crash adds where it
+  happened and the calls that led there (the build's unstripped programs, kept in `build/release-windows/symbols/`,
+  and `tools/release/crash_where.sh` name them). `CPS3RECOMP_TEST_CRASH_AT_FRAME=N` crashes a game on purpose to try it.
+- **Windows: fewer antivirus false alarms** (cps2recomp #433). Every program now says what it is (name, version,
+  publisher and a manifest, in its Properties), the games' online play makes its requests itself (WinHTTP, as the
+  launcher already did) instead of starting a hidden `curl.exe`, and the release build signs the programs when it is
+  given a certificate (docs/RELEASING.md); without one, nothing is signed, as before.
 - **Which controller is which player** (the launcher's Controllers page, recomp-common's `[controllers]`): each
   connected gamepad is Automatic, Player 1-4 or Not used, and the game hands out its gamepads that way (again when
   one comes or goes), in place of the first one connected always being player 1's. A Steam Deck's own controls can

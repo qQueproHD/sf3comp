@@ -7,6 +7,7 @@
 
 #include "../runtime/game.h"
 #include "../runtime/state.h"
+#include "crash_log.h"
 #include "hud.h"
 #include "png_write.h"
 #include "image_files.h"
@@ -2911,6 +2912,7 @@ void Port::RapidFire() {
 }
 
 void Port::RunFrame() {
+    port::TestCrashAt(frame); // (CPS3RECOMP_TEST_CRASH_AT_FRAME: crash_log.h)
     if (!opt.replayPlay.empty() && frame == 0 && !replay.playing) {
         std::string why;
         if (!ReplayPlay(opt.replayPlay, why)) {
@@ -3539,6 +3541,15 @@ int main(int argc, char **argv) {
         freopen("CONOUT$", "w", stderr);
     }
     recomp::UseSystemProxy();  // (Windows' proxy, for the curl that asks the online service: recomp-common/proxy.h)
+    // (Bandicam's Vulkan layer, registered when it is installed and loaded into every Vulkan program even with
+    // Bandicam closed, crashes as the GPU device is made (bdcamvk64.dll reads address 0; cps2recomp #446): the Vulkan
+    // loader leaves it out. A player who sets the loader's list themselves keeps theirs)
+    if (!getenv("VK_LOADER_LAYERS_DISABLE")) {
+        _putenv_s("VK_LOADER_LAYERS_DISABLE", "*bandicam*,*bdcam*");
+    }
+#endif
+#ifndef __ANDROID__
+    port::KeepLogOnCrash(); // (the output written as it goes, so a crash keeps logs/game.log: port/crash_log.h)
 #endif
 #ifdef __ANDROID__
     port::StartOnAndroid();
