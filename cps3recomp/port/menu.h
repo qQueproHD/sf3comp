@@ -79,6 +79,16 @@ public:
     // (whether a choice can be had now, asked each time the menu opens: one that is not is passed over by Left, Right and
     // Confirm, as one the launcher leaves out of the menu; the Dreamcast music without its disc. Not given: all can)
     std::function<bool(const std::string &feature, int choice)> choiceAvailable;
+    // (a row of the port's own on the page of one of the game's features, under it, made anew each time the menu opens:
+    // the Display page's Your own preset under the Shader, Port::Init's. Not given, or `after` none of the features: none)
+    struct ExtraRow {
+        std::string after; // (the feature's name)
+        std::string title, description;
+        std::vector<std::string> choices;
+        std::function<int()> value;
+        std::function<void(int)> setValue;
+    };
+    std::function<ExtraRow()> extraRow;
     size_t Replay() const {
         return m_replay;
     }

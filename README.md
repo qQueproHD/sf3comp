@@ -113,7 +113,7 @@ playable by either player.
   An arcade monitor (CRT Emudriver) gets the board's own 384 x 224 in full screen, or a super resolution such as
   2560 x 224, on the screen you choose, synced to the screen with a frame delay, and on Windows made at the board's
   exact 59.60 Hz with Switchres, as GroovyMAME does: set up on the launcher's Features page.
-- **An in-game menu** (Esc or F1; on a gamepad the left stick's click, or Start and Select together): save states,
+- **An in-game menu** (Esc or F1; on a gamepad Guide, or Start and Select together): save states,
   speed, the cheats, the board's own settings and test menu, every feature. Pure plays exactly as the board does;
   Enhanced (the default) adds free play, arcade timing, integer scaling and, in widescreen, invisible walls.
 - **Scene export**: any moment of any game saved as its layers, each a see-through PNG (the board's tilemaps, the

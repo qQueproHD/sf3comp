@@ -32,6 +32,9 @@ set(LAUNCHER_VERSION "${GAME_VERSION}")
 set(LAUNCHER_PORT_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/src/description.cpp ${CMAKE_CURRENT_SOURCE_DIR}/../port/dreamcast.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../machine/romset.cpp ${CMAKE_CURRENT_SOURCE_DIR}/../machine/crypt.cpp)
 set(LAUNCHER_COLLECTION ${COLLECTION})
+# (the in-game menu's gamepad buttons until the player chooses: Guide, or Start and Select together, as the game's own,
+# RECOMP_MENU_BUTTON_DEFAULT in the top CMakeLists.txt. recomp-common/menu_buttons.h)
+set(LAUNCHER_MENU_BUTTON guide)
 if(COLLECTION)
     if(NOT LAUNCHER_VERSION)
         file(STRINGS ${CMAKE_CURRENT_SOURCE_DIR}/../../VERSION LAUNCHER_VERSION LIMIT_COUNT 1)

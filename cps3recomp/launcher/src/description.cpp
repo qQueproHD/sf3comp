@@ -13,6 +13,7 @@
 #include "../../port/bindings.h"
 #include "../../port/dreamcast.h"
 #include "../../port/netplay.h"
+#include "../../port/own_shader.h"
 
 #include <algorithm>
 #include <chrono>
@@ -203,12 +204,12 @@ launcher::Description describe_game(const GameInfo& game) {
     intro += game.extra_sets_words;
 #endif
 #ifdef __ANDROID__
-    intro += "\n\nWhile playing, Back or the screen's Menu button, or the left stick's click (or Start and Select together) on a gamepad, "
+    intro += "\n\nWhile playing, Back or the screen's Menu button, or Guide (or Start and Select together) on a gamepad, "
              "opens the in-game menu: save states, speed, and every feature.";
     d.file_intro = keep(intro);
     d.file_empty = keep(std::string("None chosen. Choose ") + game.rom_set + ".zip.");
 #else
-    intro += "\n\nWhile playing, Esc or F1 on the keyboard, or the left stick's click (or Start and Select together) on a gamepad, opens the "
+    intro += "\n\nWhile playing, Esc or F1 on the keyboard, or Guide (or Start and Select together) on a gamepad, opens the "
              "in-game menu: save states, speed, and every feature.";
     d.file_intro = keep(intro);
     d.file_empty = keep(std::string("None chosen. Drop ") + game.rom_set + ".zip or its folder here, or choose the zip.");
@@ -315,8 +316,12 @@ launcher::Description describe_game(const GameInfo& game) {
         d.display.push_back({keep(one.name), keep(one.title), keep(one.detail), false, nullptr});
     }
     d.bindings = port::MakeBoundTable(2, "", false).table;
+    // (the Shader's Your own: the player's presets, in the shaders folder every game shares, beside launcher.ini; the
+    // Features page's Your own preset and Shaders folder rows under the Shader. port/own_shader.h)
+    d.own_shaders = {"display_shader", port::kYourOwnShaderChoice};
     d.controls_heading = "WHILE PLAYING";
-    d.controls = {{"Keys", "Esc, F1, the left stick's click, or Start and Select together: the in-game menu (save states, coin, quit)   "
+    d.controls = {{"Keys", "Esc, F1, a gamepad's Guide, or Start and Select together: the in-game menu (save states, coin, quit; Menu "
+                           "button, above: which gamepad buttons)   "
                            "P / O: stop, one frame on   - / =: speed   F5 / F9: save and load a state   F6 / F7: slot   F2: operator's "
                            "test switch   F11: full screen. On a gamepad: right stick's click stops the game and starts it again, left "
                            "trigger goes on a frame while it is stopped. (A key or button given to the game above does only that.)"}};
@@ -350,14 +355,14 @@ const launcher::Collection& launcher::describe_collection() {
         // launcher, App::choose_folder)
         c.intro = "Each game needs your own copy of it: its arcade ROM set. Add the sets from your phone or a drive: they are copied "
                   "into the app's folder.\n\n"
-                  "While playing, Back or the screen's Menu button, or the left stick's click (or Start and Select together) on a gamepad, "
+                  "While playing, Back or the screen's Menu button, or Guide (or Start and Select together) on a gamepad, "
                   "opens the in-game menu.";
         c.find_title = "Add your sets";
         c.find_detail = "Choose the ROM sets, as many as you like at once, by the set's name (sfiii3nr1.zip, say). Each goes to its game.";
 #else
         c.intro = "Each game needs your own copy of it: its arcade ROM set. Show the launcher the folder you keep them in, or drop a set "
                   "(or the folder) on this window. The sets stay where they are: the launcher only reads them.\n\n"
-                  "While playing, Esc or F1 on the keyboard, or the left stick's click (or Start and Select together) on a gamepad, "
+                  "While playing, Esc or F1 on the keyboard, or Guide (or Start and Select together) on a gamepad, "
                   "opens the in-game menu.";
         c.find_title = "Look in a folder";
         c.find_detail = "Finds each game's ROM set in a folder of them, by the set's name (sfiii3nr1.zip, say).";
