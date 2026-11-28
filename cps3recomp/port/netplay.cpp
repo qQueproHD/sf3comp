@@ -57,6 +57,8 @@ namespace {
         kPieceAck = 8, // joining -> host: how many pieces have come, all before that one
         kChat = 9,    // either: a line of the chat, by its number
         kChatAck = 10, // either: how many lines of the chat have come, all before that one
+        kSetDone = 11, // either: the set's target and final score as this side has it, and (the host's) whether it has
+                       // the other side's the same; again until the match ends (Netplay::Ready)
     };
 
     // A name or a line of the chat as the screen's font has it (ASCII's letters, digits and marks), at most `most` of
@@ -119,11 +121,20 @@ namespace {
     enum class Share { Host, Own, Off, Keep };
     Share Shared(const Feature &feature) {
         const std::string category = feature.category, name = feature.name;
+        if (name == "rewind" || name == "practice_point") {
+            return Share::Own; // (each player's own, and nothing online: Port::RewindOn)
+        }
         if (name == "run_ahead" || name == "custom_colours") {
             return Share::Off; // (custom colours: each player's own library, which the other side has not)
         }
+        if (name.rfind("touch_", 0) == 0) {
+            return Share::Own; // (the touch controls: each player's own screen and thumbs, on the Game page though they are)
+        }
         if (name.rfind("widescreen", 0) == 0 || category == "Game" || category == "Board" || name == "stage") {
             return Share::Host;
+        }
+        if (name == "online_first_to") {
+            return Share::Host; // (the set's format: the host's, Netplay::BeginSet)
         }
         if (category == "Tag team battle") {
             return Share::Host; // (the modes played in a match, Port::OnlineEvent: the page as the host has it, each
@@ -564,63 +575,12 @@ namespace {
             args.push_back(body);
         }
         args.push_back(url);
-#if defined(__ANDROID__)
+#if defined(__ANDROID__) || defined(_WIN32)
         // (Android has no curl to start: the game's activity makes the request, as the launcher's are made there:
-        // recomp-common's run_program, GameActivity.curl)
+        // recomp-common's run_program, GameActivity.curl. Windows: the program makes it itself, with WinHTTP, not
+        // a curl.exe started with no window, which antivirus programs take for a downloader: winhttp_curl.h)
         std::string text;
         const int exitCode = launcher::run_program(launcher::curl_program(), std::vector<std::string>(args.begin() + 1, args.end()), &text);
-#elif defined(_WIN32)
-        // (Windows: curl, a console program, started with no console window; its output through a pipe)
-        std::string command;
-        for (const std::string &arg : args) {
-            std::string quoted = "\"";
-            for (size_t i = 0; i < arg.size(); i++) {
-                size_t slashes = 0;
-                while (i < arg.size() && arg[i] == '\\') {
-                    slashes++, i++;
-                }
-                if (i == arg.size()) {
-                    quoted.append(slashes * 2, '\\');
-                    break;
-                }
-                quoted.append(arg[i] == '"' ? slashes * 2 + 1 : slashes, '\\');
-                quoted += arg[i];
-            }
-            command += (command.empty() ? "" : " ") + quoted + "\"";
-        }
-        SECURITY_ATTRIBUTES inherit{sizeof(inherit), nullptr, TRUE};
-        HANDLE readEnd = nullptr, writeEnd = nullptr;
-        if (!CreatePipe(&readEnd, &writeEnd, &inherit, 0)) {
-            return {0, ""};
-        }
-        SetHandleInformation(readEnd, HANDLE_FLAG_INHERIT, 0);
-        STARTUPINFOA startup{};
-        startup.cb = sizeof(startup);
-        startup.dwFlags = STARTF_USESTDHANDLES;
-        startup.hStdOutput = writeEnd;
-        startup.hStdError = nullptr;
-        startup.hStdInput = nullptr;
-        PROCESS_INFORMATION info{};
-        std::vector<char> commandLine(command.begin(), command.end());
-        commandLine.push_back('\0');
-        const bool started = CreateProcessA(nullptr, commandLine.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr, nullptr, &startup, &info);
-        CloseHandle(writeEnd);
-        std::string text;
-        int exitCode = -1;
-        if (started) {
-            char buffer[4096];
-            DWORD got = 0;
-            while (ReadFile(readEnd, buffer, sizeof(buffer), &got, nullptr) && got > 0) {
-                text.append(buffer, got);
-            }
-            WaitForSingleObject(info.hProcess, INFINITE);
-            DWORD code = 0;
-            GetExitCodeProcess(info.hProcess, &code);
-            exitCode = static_cast<int>(code);
-            CloseHandle(info.hProcess);
-            CloseHandle(info.hThread);
-        }
-        CloseHandle(readEnd);
 #else
         std::vector<const char *> argv;
         for (const std::string &arg : args) {
@@ -1145,6 +1105,68 @@ int Netplay::Ping() const {
     return std::max(0, static_cast<int>(std::lround(ping - 1000.0 / Machine::kFramesPerSecond)));
 }
 
+int Netplay::Jitter() const {
+    return static_cast<int>(std::lround(jitter));
+}
+
+void Netplay::RollbackSecond(uint64_t now) {
+    const uint64_t second = now / 1000;
+    if (second == rollbackSecond) {
+        return;
+    }
+    // (the second just over is the last whole one; a second or more with none in between: none)
+    rollbackLastCount = second == rollbackSecond + 1 ? rollbackCount : 0;
+    rollbackLastMost = second == rollbackSecond + 1 ? rollbackMost : 0;
+    rollbackSecond = second;
+    rollbackCount = rollbackMost = 0;
+}
+
+void Netplay::Rollbacks(int &count, int &most) {
+    RollbackSecond(NowMs());
+    count = rollbackLastCount;
+    most = rollbackLastMost;
+}
+
+// (an event made or come: the host's Swap sides, from its frame on)
+void Netplay::NoteSwap(int machine, uint64_t at, const std::string &text) {
+    if (machine != 0) {
+        return; // (the host's only: the other player asks in the chat)
+    }
+    for (size_t from = 0; from <= text.size();) {
+        const size_t comma = std::min(text.find(',', from), text.size());
+        if (text.compare(from, comma - from, kSwap) == 0) {
+            swaps[at] = true;
+        }
+        from = comma + 1;
+    }
+}
+
+int Netplay::SideOf(int machine, uint64_t at) const {
+    bool swapped = false;
+    for (auto it = swaps.begin(); it != swaps.end() && it->first <= at; ++it) {
+        swapped = !swapped;
+    }
+    return swapped ? 1 - machine : machine;
+}
+
+void Netplay::BeginSet() {
+    set.Begin(TheGame().matchResult ? FeatureSetting("online_first_to") : 0, TheGame().matchResult != nullptr);
+    fprintf(stderr, "online: set format %s\n", set.Format().c_str());
+}
+
+bool Netplay::SetAgrees() const {
+    return set.Target() && set.Winner() >= 0 && peerTarget == set.Target() && peerScore[0] == set.Score(0) &&
+           peerScore[1] == set.Score(1) && (settings.hosting || peerReady);
+}
+
+void Netplay::FinishSet() {
+    setFinished = true;
+    left = lost = false;
+    const std::string who = Name(MachineAt(set.Winner()));
+    ended = (who.empty() ? "Player " + std::to_string(set.Winner() + 1) : who) + " wins the FT" + std::to_string(set.Target()) +
+            " set (" + std::to_string(set.Score(0)) + "-" + std::to_string(set.Score(1)) + ").";
+}
+
 uint64_t Netplay::Silent() const {
     return NowMs() - lastHeard;
 }
@@ -1190,6 +1212,26 @@ void Netplay::SendInputs() {
 
 void Netplay::Take(const uint8_t *data, size_t size) {
     Reader in(data, size);
+    if (data[4] == kSetDone) {
+        const int target = in.U8(), first = in.U8(), second = in.U8();
+        const bool ready = in.U8() != 0;
+        if (in.ok && size == 9 && target == set.Target() &&
+            ((first == target && second < target) || (second == target && first < target))) {
+            // (a packet from before the host had agreed may come after one from after it: agreed stays agreed for the
+            // same score)
+            const bool already = peerReady && peerTarget == target && peerScore[0] == first && peerScore[1] == second;
+            peerTarget = target;
+            peerScore[0] = first;
+            peerScore[1] = second;
+            peerReady = !settings.hosting && (ready || already);
+            lastHeard = NowMs();
+        }
+        return;
+    }
+    if (data[4] == kBye && ended.empty() && set.Winner() >= 0 && SetAgrees()) {
+        FinishSet(); // (the other side has shown the set's result and gone: so is this one)
+        return;
+    }
     if (data[4] == kBye || data[4] == kRefuse) {
         if (ended.empty()) { // (the first reason is the one: a desync is followed by a goodbye)
             ended = data[4] == kBye ? "The other player left." : in.Text();
@@ -1246,6 +1288,7 @@ void Netplay::Take(const uint8_t *data, size_t size) {
     for (const auto &[at, text] : came) {
         if (at >= confirmed && at < confirmed + kInputs && !events[remote].count(at)) {
             events[remote][at] = text;
+            NoteSwap(remote, at, text);
             eventNotices.push_back({remote, text});
             if (at <= current) { // (current: the last frame run, before Ready gives the next)
                 eventFrom = std::min(eventFrom, at);
@@ -1270,6 +1313,9 @@ void Netplay::Take(const uint8_t *data, size_t size) {
     if (echoed) {
         const double rtt = static_cast<double>(static_cast<uint32_t>(static_cast<uint32_t>(NowMs()) - echoed - held));
         if (rtt < 10000) {
+            if (ping) {
+                jitter = jitter * 0.9 + std::abs(rtt - ping) * 0.1;
+            }
             ping = ping ? ping * 0.9 + rtt * 0.1 : rtt;
         }
     }
@@ -1298,9 +1344,37 @@ bool Netplay::Ready(uint64_t frame) {
     }
     Compare();
     SendChat(NowMs());
+    if (ended.empty() && set.Winner() >= 0) {
+        // (the set won on this side: its score said to the other side until the match ends; once both have the same,
+        // the result is shown for two seconds, the game standing still, and the match ends)
+        const uint64_t now = NowMs();
+        if (!setSent || now - setSent >= 100) {
+            Writer done(kSetDone);
+            done.U8(static_cast<uint8_t>(set.Target()));
+            done.U8(static_cast<uint8_t>(set.Score(0)));
+            done.U8(static_cast<uint8_t>(set.Score(1)));
+            done.U8(settings.hosting && SetAgrees());
+            Send(done.out);
+            setSent = now;
+        }
+        if (peerTarget == set.Target() && (peerScore[0] != set.Score(0) || peerScore[1] != set.Score(1))) {
+            ended = "The two games disagree on the set's final score.";
+            failed = true;
+        } else if (SetAgrees()) {
+            if (!setAgreed) {
+                setAgreed = now;
+            }
+            SendInputs(); // (the last controls kept coming to the other side while the result is shown)
+            if (now - setAgreed >= 2000) {
+                FinishSet();
+            }
+            return false;
+        }
+    }
     if (ended.empty() && NowMs() - lastHeard > 5000) {
         ended = "Lost the connection to the other player.";
-        failed = lost = true;
+        failed = true;
+        lost = set.Winner() < 0; // (a set already won is not waited for again)
     }
     if (!ended.empty()) {
         return false;
@@ -1330,23 +1404,29 @@ bool Netplay::Ready(uint64_t frame) {
 
 void Netplay::Run(Port &port, uint64_t at, bool drawing) {
     Kept &k = kept[at % kKept];
-    uint16_t players[Machine::kMaxPlayers] = {};
-    players[local] = localInput[at % kInputs];
-    // (the other side's, or guessed as the last that came)
-    k.used = at < remoteUpTo ? remoteInput[at % kInputs] : remoteUpTo ? remoteInput[(remoteUpTo - 1) % kInputs] : 0;
-    players[remote] = k.used;
-    // (the events for this frame, player 1's first: Command)
-    for (int player = 0; player < 2; player++) {
-        const auto event = events[player].find(at);
-        if (event != events[player].end()) {
-            port.OnlineEvent(player, event->second, at);
+    // (the events for this frame, the host's first: Command; each with the board's player its machine plays now)
+    for (int machine = 0; machine < 2; machine++) {
+        const auto event = events[machine].find(at);
+        if (event != events[machine].end()) {
+            port.OnlineEvent(machine, SideOf(machine, at), event->second, at);
         }
     }
+    // (each machine's controls for the board's player it plays at this frame: Swap sides)
+    uint16_t players[Machine::kMaxPlayers] = {};
+    players[SideOf(local, at)] = localInput[at % kInputs];
+    // (the other side's, or guessed as the last that came)
+    k.used = at < remoteUpTo ? remoteInput[at % kInputs] : remoteUpTo ? remoteInput[(remoteUpTo - 1) % kInputs] : 0;
+    players[SideOf(remote, at)] = k.used;
     // (the host's pause for choosing, Port::onlineSetupLog: the game stands still for both)
     if (!port.OnlinePausedAt(at)) {
         port.machine->drawing = drawing;
         port.Step(players);
         port.machine->drawing = true;
+    }
+    // (the match as this frame left it, for the set's score once the frame is confirmed: Frame)
+    if (set.Counting() && TheGame().matchResult) {
+        const int result = TheGame().matchResult();
+        k.result = {std::max(result, 0), 1, result >= 0};
     }
     if ((at + 1) % kHashEvery == 0 || port.hashFile) {
         k.hash = port.StateHash();
@@ -1366,6 +1446,7 @@ void Netplay::Frame(Port &port, uint16_t controls) {
             line += (line.empty() ? "" : ",") + text;
             eventNotices.push_back({local, text});
         }
+        NoteSwap(local, frame + delay, line);
         commanded.clear();
     }
     // How far ahead of the other side this side is: the frame it is on, over what the other side said last
@@ -1389,31 +1470,51 @@ void Netplay::Frame(Port &port, uint16_t controls) {
     if (wrong < upTo) {
         const size_t sound = port.machine->audio.size();
         port.PutBackState(kept[wrong % kKept].state, true);
+        port.onlineReselect = kept[wrong % kKept].reselect;
         for (uint64_t at = wrong; at < frame; at++) {
             if (at != wrong) {
                 port.KeepState(kept[at % kKept].state, true);
+                kept[at % kKept].reselect = port.onlineReselect;
             }
             Run(port, at, false);
         }
         port.machine->audio.resize(sound);
         rollbacks++;
+        RollbackSecond(NowMs());
+        rollbackCount++;
+        rollbackMost = std::max(rollbackMost, static_cast<int>(frame - wrong));
         rerun += frame - wrong;
         mostRerun = std::max(mostRerun, static_cast<int>(frame - wrong));
     }
     // The frames that now have the real controls: their hashes, to compare (and to the hash log)
     for (uint64_t at = confirmed; at < upTo; at++) {
         const Kept &k = kept[at % kKept];
+        if (swaps.count(at)) {
+            // (the players have changed sides: the set's score and the streaks are theirs no more, and start again, on
+            // both machines at this confirmed frame)
+            set.Restart();
+            port.OnlineSidesSwapped();
+            fprintf(stderr, "online: sides swapped at frame %llu: the host is player %d, the set starts again\n",
+                    static_cast<unsigned long long>(at), SideOf(0, at) + 1);
+        }
+        const int won = set.Confirm(at, k.result);
+        if (won >= 0) {
+            fprintf(stderr, "online: set %s frame %llu score %d-%d%s\n", set.Format().c_str(),
+                    static_cast<unsigned long long>(at + 1), set.Score(0), set.Score(1), set.Winner() >= 0 ? " complete" : "");
+            port.OnlineWon(won);
+        }
         if (!port.opt.movieRecord.empty()) {
-            // (--record: what both players held, as the frame had them, for the frames that have the real ones)
+            // (--record: what both players held, as the frame had them, for the frames that have the real ones, by the
+            // board's player each played)
             Movie::Pads pads{};
-            pads[local] = localInput[at % kInputs];
-            pads[remote] = remoteInput[at % kInputs];
+            pads[SideOf(local, at)] = localInput[at % kInputs];
+            pads[SideOf(remote, at)] = remoteInput[at % kInputs];
             port.recMovie.changes[at] = pads;
         }
         {
             uint16_t pads[Machine::kMaxPlayers] = {};
-            pads[local] = localInput[at % kInputs];
-            pads[remote] = remoteInput[at % kInputs];
+            pads[SideOf(local, at)] = localInput[at % kInputs];
+            pads[SideOf(remote, at)] = remoteInput[at % kInputs];
             if (!port.OnlinePausedAt(at)) { // (the paused frames left out: the game did not run them)
                 port.ReplayConfirmed(at - port.OnlinePausedBefore(at), pads); // (match replays: replay.h)
             }
@@ -1434,6 +1535,7 @@ void Netplay::Frame(Port &port, uint16_t controls) {
     Compare();
     // The frame itself
     port.KeepState(kept[frame % kKept].state, true);
+    kept[frame % kKept].reselect = port.onlineReselect;
     Run(port, frame, true);
     const double took = std::chrono::duration<double>(std::chrono::steady_clock::now() - began).count();
     worst = std::max(worst, took);

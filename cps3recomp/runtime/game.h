@@ -29,6 +29,11 @@ struct Feature {
     // For a feature that is a choice of several things rather than on or off: their names, the first being
     // the one that means off (FeatureValue gives the number of the one chosen)
     std::vector<const char *> choices = {};
+    // Kept by name (recomp-common/settings.h, FeatureInfo::ids): a stable name for each choice, so one can be taken
+    // out or moved without a saved choice changing meaning; and what the old numbers meant ("" for one gone). Empty:
+    // by number.
+    std::vector<const char *> ids = {};
+    std::vector<const char *> numbered = {};
 };
 enum : unsigned {
     kFeatureEnhanced = 2,  // on in the launcher's "Enhanced" preset
@@ -37,7 +42,14 @@ enum : unsigned {
     // Its switch is on the launcher's first page, with "Full screen" (the game's game.cfg names it there:
     // `display`), and not on the Features page: the launcher says at every start whether it is on
     // (--features NAME or -NAME), which goes before what settings.ini has. The in-game menu still has it.
+    // On Android none is: the launcher there has no first-page switches (a phone's one screen is always full), so
+    // the feature is on the Features page with the rest, kept in settings.ini as the in-game menu sets it (a tester,
+    // 2026-11-26: "Wide-screen ... doesn't save if you set it within the game", "is not in the features menu")
+#ifdef __ANDROID__
+    kFeatureFirstPage = 0,
+#else
     kFeatureFirstPage = 16,
+#endif
     // A training aid (hit boxes, frame data, the dummy...): it works only while a training session is on
     // (Game::inTraining); elsewhere it reads as off (FeatureValue), though the menu and settings.ini keep it
     kFeatureTraining = 32,
@@ -124,6 +136,15 @@ struct Game {
     // rows as the host has them, the players' own fighters as their events set them). False: not this game's. Not
     // given: only Versus online.
     bool (*startOnline)(Machine &machine, int mode, uint32_t seed) = nullptr;
+    // Online, the set's score and the win streaks (port/first_to.h, counted on the frames both machines have the real
+    // controls for): the match between two people now: -1 none (not a fight, one against the computer, or a mode of
+    // the sources' own), 0 one being fought, 1 or 2 that player has won it. Not given: no score, no sets.
+    int (*matchResult)() = nullptr;
+    // Online, both players back to character select (Port::OnlineReselect): the board started again (startOnline's
+    // Versus, or the board's reset), then coins (to `credits`, a byte, two) and Starts until both players have come in (joined). Not given:
+    // no such choice.
+    bool (*joined)(int player) = nullptr;
+    uint32_t credits = 0;
     // With the board's timing (the port's arcade_timing feature) the game's own code runs in place of the readable
     // rewrites, whose time is only what their originals' takes without the board's waits: unless this says the
     // rewrites are needed now (training mode, a mode of the sources' own, widescreen, a cheat that works inside
@@ -167,6 +188,10 @@ std::vector<recomp::FeatureInfo> FeatureList();
 // The player's choices: from settings.ini ([features]: preset = pure | enhanced | custom, then name = 0 | 1),
 // then `list` (comma-separated names, each on; "-name": off). Call after RegisterGame.
 void LoadFeatures(const std::string &settingsPath, const std::string &list);
+// Where the launcher keeps its first-page switches (kFeatureFirstPage): its launcher.ini and the section, "video",
+// or a collection's "video.<id>" in the collection's own launcher.ini (not beside settings.ini). Changed in the
+// in-game menu, the switch is set there too. Not said: launcher.ini beside settings.ini, "video".
+void SetLauncherSwitches(const std::string &launcherIni, const std::string &section);
 // Where settings.ini is (empty: none): a game's sources keep files of their own beside it
 const std::string &SettingsPath();
 bool FeatureOn(const char *name);

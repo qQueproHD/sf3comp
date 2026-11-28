@@ -19,12 +19,19 @@ if [ "${SKIP_BUILD:-}" != 1 ]; then
     (cd "$ROOT" && B="$B" GB="$B/games" sh cps3recomp/tools/collection.sh ${CMAKE_ARGS:-})
     cmake --build "$B/games/sfiii3" --target launcher
 fi
+# (the SOCD cleaner's choices, cps3recomp/port/socd.h; where there is a compiler: not Windows's runner)
+if command -v c++ >/dev/null 2>&1; then
+    mkdir -p "$B"
+    c++ -std=c++20 -Wall -Wextra -Werror -Wno-unused-parameter -I"$ROOT/cps3recomp/machine" -I"$ROOT/cps3recomp/video" \
+        -I"$ROOT/cps3recomp/sound" -I"$ROOT/cps3recomp/runtime" "$ROOT/cps3recomp/tools/check_socd.cpp" -o "$B/check_socd"
+    "$B/check_socd"
+fi
 BIN="${BIN:-$B}"
 EXE=""
 [ -f "$BIN/sfiii3.exe" ] && EXE=.exe
 for game in $GAMES; do
     features="$("$BIN/$game$EXE" --list-features | tr -d '\r')"
-    need="run_ahead display_scaling online_delay"
+    need="run_ahead display_scaling online_delay socd"
     [ "$game" != sfiii3 ] || need="free_play widescreen_walls stage stages_preload dummy_parry"
     for f in $need; do
         echo "$features" | grep -q "^$f	" || { echo "$game: the program's feature list has no $f"; exit 1; }

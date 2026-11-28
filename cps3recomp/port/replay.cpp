@@ -113,7 +113,7 @@ namespace {
         if (category == "Online" || category == "Replays" || (category == "Display" && name.rfind("widescreen", 0) != 0)) {
             return false;
         }
-        return name != "run_ahead" && name != "rapid_fire" && name != "custom_soundtrack";
+        return name != "run_ahead" && name != "rapid_fire" && name != "socd" && name != "custom_soundtrack";
     }
     uint32_t GameHash(Port &port) {
         // (the game alone, not its picture: the picture is the viewer's to choose)

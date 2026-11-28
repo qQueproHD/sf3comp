@@ -7,6 +7,7 @@
 
 #include "../runtime/game.h"
 #include "../runtime/state.h"
+#include "crash_log.h"
 #include "hud.h"
 #include "png_write.h"
 #include "image_files.h"
@@ -17,6 +18,7 @@
 #include "../runtime/recomp.h"
 #include "../recomp-common/arcade_screen.h"
 #include "../recomp-common/folders.h"
+#include "../recomp-common/own_shaders.h"
 #include "../recomp-common/proxy.h"
 #include "../recomp-common/settings.h"
 #include "../recomp-common/text.h"
@@ -136,6 +138,21 @@ void RegisterPortFeatures() {
                                   "on the board (input lag taken away). The game runs as it does without it; it takes two or three "
                                   "times the processor. Off by itself in the game's own modes beyond fights and training.",
                                   0, {"Off", "1 frame", "2 frames"}});
+    // (rewind, practice_point: Port::RewindTick, PracticeSet; docs/FEATURES.md)
+    TheGame().features.push_back({"rewind", "Game", "Rewind",
+                                  "Hold R (a gamepad's left trigger) and the game runs backwards, three times as fast as play, "
+                                  "through its last half a minute or so, unheard; let go and play on from there. Kept as a "
+                                  "state every few frames, about 150 megabytes of memory (more on another game's stage). With it "
+                                  "on, the left trigger "
+                                  "rewinds in place of the tag team battle's Tag. Not online.",
+                                  0});
+    TheGame().features.push_back({"practice_point", "Game", "Practice point",
+                                  "] (a gamepad's left shoulder held half a second) keeps the game as it is that instant; "
+                                  "Backspace (the shoulder tapped) puts it back, at once and as often as you like; Backslash "
+                                  "(the shoulder with the left trigger held) shows your last attempt from it again, the "
+                                  "controls as you pressed them, until you press a button. Until a point is set, Backspace "
+                                  "does what it does without it (training's Start over). Not online.",
+                                  0});
     // (arcade_timing: machine/bus.h, the SH-2's timing as the board's; docs/TIMING.md)
     TheGame().features.push_back({"arcade_timing", "Game", "Arcade timing",
                              "The processor takes the time the board's makes it take: its memory's waits as the game sets the bus "
@@ -145,11 +162,34 @@ void RegisterPortFeatures() {
                              "is instant. Training, the alternative modes and the viewers keep the "
                              "port's own readable code for the routines it has rewritten.",
                              kFeatureEnhanced});
+    // (socd: port/socd.h, in the window's reading of the controls, so online the other side gets them cleaned)
+    TheGame().features.push_back({"socd", "Game", "SOCD cleaner",
+                                  "What the game sees when you hold two opposite directions at once, as a hit box or a keyboard "
+                                  "can (the board passes both on, and games do odd things with them). Neutral: up and down is "
+                                  "neither, left and right is neither. Hit box: up and down is up, left and right is neither. "
+                                  "4-way: as Neutral, and no diagonals, the direction pressed last winning. Your own: online "
+                                  "the other player's choice is theirs.",
+                                  0, {"Off", "Neutral (U+D=N, L+R=N)", "Hit box (U+D=U, L+R=N)", "4-way, no diagonals"}});
     // (rapid_fire: Port::RapidFire)
     TheGame().features.push_back({"rapid_fire", "Game", "Rapid fire",
                                   "A button held down is pressed again and again (fifteen times a second), for the first button or "
                                   "for all of them. The first press is seen at once, as without it.",
                                   0, {"Off", "First button", "Every button"}});
+#ifndef __APPLE__
+    // (touch_controls, touch_movement: port/touch.h; where there may be a touch screen: a phone, a handheld PC, a Steam
+    // Deck; not a Mac)
+    TheGame().features.push_back({"touch_controls", "Game", "Touch controls",
+                                  "A stick, the six buttons, Coin, Start and the menu on a touch screen. On: shown on a phone "
+                                  "until a gamepad or a key is used, and anywhere once the screen is touched; with nothing "
+                                  "touched for a few seconds they are no longer drawn. Off: never shown, so a thumb on a "
+                                  "handheld's screen does nothing. The in-game menu answers a tap either way.",
+                                  0, {"On", "Off"}});
+    TheGame().features.push_back({"touch_movement", "Game", "Touch movement",
+                                  "Where the touch controls' stick is. Where the finger goes down: anywhere in the left half "
+                                  "of the screen away from the buttons, the stick's middle under the finger. Fixed: where it "
+                                  "is drawn.",
+                                  0, {"Where the finger goes down", "Fixed"}});
+#endif
     // (display_*: how the picture is fitted to the window, present.h; the first of each is how it always was)
     TheGame().features.push_back({"display_scaling", "Display", "Scaling",
                                   "Sharp: as large as fits, each pixel a crisp block. Whole pixels: every pixel the same whole "
@@ -173,14 +213,23 @@ void RegisterPortFeatures() {
                                   "The picture drawn through one of RetroArch's shaders. CRT: a curved arcade monitor. CRT "
                                   "Lottes and CRT Guest: flat monitors, sharp and bright. CRT Royale: the closest to a real "
                                   "monitor's glass and the slowest. CRT Light: lines and a faint mask, for a slow computer. "
-                                  "Scanlines: the lines alone, light, strong, as an OSSC draws them, or dark (a black line "
-                                  "between each two, best with Whole pixels). xBRZ and ScaleFX: the pixels' edges made smooth "
+                                  "Scanlines: the lines alone, light, strong, or dark (a black line between each two, best "
+                                  "with Whole pixels). xBRZ and ScaleFX: the pixels' edges made smooth "
                                   "lines and curves. Your own: the first .slangp preset in the shaders folder beside the "
-                                  "game's settings. The launcher chooses which of these the menu goes through. The picture's "
+                                  "game's settings or in the one every game shares (the launcher's Open shaders folder), or "
+                                  "the one chosen under Your own preset. The launcher chooses which of these the menu goes "
+                                  "through. The picture's "
                                   "shape and size stay as set; the shader draws its pixels in place of Scaling.",
                                   kFeatureMenuChoices,
                                   {"Off", "CRT", "CRT Lottes", "CRT Royale", "CRT Guest", "CRT Light", "Scanlines: light",
-                                   "Scanlines: strong", "Scanlines: OSSC", "Scanlines: dark", "xBRZ", "ScaleFX", "Your own"}});
+                                   "Scanlines: strong", "Scanlines: dark", "xBRZ", "ScaleFX", "Your own"},
+                                  // (kept by name since OSSC's scanlines were taken out on 2026-11-26: a RetroArch preset
+                                  // for that box's "Full" aspect, it drew the picture 4:3 with the sides smeared; a saved
+                                  // OSSC is Off)
+                                  {"off", "crt", "crt_lottes", "crt_royale", "crt_guest", "crt_light", "scanlines_light",
+                                   "scanlines_strong", "scanlines_dark", "xbrz", "scalefx", "own"},
+                                  {"off", "crt", "crt_lottes", "crt_royale", "crt_guest", "crt_light", "scanlines_light",
+                                   "scanlines_strong", "", "scanlines_dark", "xbrz", "scalefx", "own"}});
     // (zoom: the camera, port/zoom.h, from the menu as well as the zoom's buttons; for this run only, as they are)
     if (Zoom::Possible()) {
         TheGame().features.push_back({"zoom", "Display", "Zoom",
@@ -196,10 +245,31 @@ void RegisterPortFeatures() {
                                   "fight, by running the next frames with and without one), what run-ahead takes off that, the "
                                   "port's own time from the press to handing that frame to the screen, and the sum. Your screen's "
                                   "own delay comes on top of it. Not online."});
+    // (Port::FrameShown; each player's own online, as the Display page is: netplay.cpp)
+    TheGame().features.push_back({"fps_counter", "Display", "FPS counter",
+                                  "The frames shown each second, in the top right corner: 59 or 60 at the board's full speed "
+                                  "(its screen's 59.6). Fewer means this machine is not keeping up (run-ahead's frames, a heavy "
+                                  "shader, a slow processor). Slow motion and fast forward count as shown; the speed itself is "
+                                  "said at the bottom."});
     TheGame().features.push_back({"online_ping", "Online", "Ping",
                                   "During an online match, the time a packet takes to the other player and back, at the bottom of "
                                   "the picture (\"PING 42 ms\").",
                                   kFeatureEnhanced});
+    // (the network readout: Port::Shown, at the top right in the small letters)
+    TheGame().features.push_back({"online_stats", "Online", "Network stats",
+                                  "During an online match, in small letters at the right, under player 2's life bar: the ping and its "
+                                  "jitter (how much it wavers), the input delay, and the rollbacks of the last second (how many, "
+                                  "and the most frames one went back).",
+                                  kFeatureEnhanced});
+    // (the set's format: the host's, Netplay::BeginSet; a game that says who wins its matches, Game::matchResult)
+    if (TheGame().matchResult) {
+        TheGame().features.push_back({"online_first_to", "Online", "Set format",
+                                      "The host chooses Casual, or a set of first to 3, 5 or 10 games, before connecting. Both "
+                                      "players see the score at the top of the picture (in Casual, the games each has won). After "
+                                      "both confirm the winner of a set, the result is shown briefly, then both return to the "
+                                      "launcher. Offline play is unchanged.",
+                                      0, {"Casual", "FT3", "FT5", "FT10"}});
+    }
     if (TheGame().fighting) {
         TheGame().features.push_back({"match_replays", "Replays", "Keep my matches",
                                       "Every match you play, offline or online, is kept as a small file (the latest 40), and "
@@ -268,8 +338,8 @@ void RegisterPortFeatures() {
                                   nullptr});
     // (names: shown unless hidden, whatever the preset, so a switch that hides them)
     TheGame().features.push_back({"online_hide_names", "Online", "Hide names",
-                                  "During an online match, each player's name is under their life bar (the name each gave on "
-                                  "the launcher's Online page): this hides them.",
+                                  "During an online match, each player's name is under their life bar, or beside the score at the "
+                                  "top in a game that keeps one (the name each gave on the launcher's Online page): this hides them.",
                                   0});
     TheGame().features.push_back({"online_delay", "Online", "Input delay",
                                   "During an online match, how many frames each player's own controls are held back, at the bottom "
@@ -411,6 +481,39 @@ bool Port::Init(std::string &error) {
             return feature != "custom_soundtrack" || choice != 3 || DreamcastThere();
         };
     }
+    // The Display page's Your own preset, under the Shader (recomp-common/own_shaders.h): the presets in this game's
+    // shaders folder and the one every game shares, found again each time the menu opens, so one put there while the
+    // game runs is in the list; chosen by name ([shader] own in settings.ini), which chooses Your own too
+    if (!opt.settingsPath.empty()) {
+        recomp::Ini settings(opt.settingsPath);
+        settings.load();
+        ownShader = recomp::shaders::Chosen(settings); // (Your own's preset, by name)
+    }
+    if (opt.shader.empty()) {
+        menu.extraRow = [this] {
+            auto list = std::make_shared<recomp::shaders::Choices>(
+                recomp::shaders::MakeChoices(recomp::shaders::Find(OwnShadersGame(), OwnShadersShared()), ownShader));
+            Menu::ExtraRow row;
+            row.after = "display_shader";
+            row.title = recomp::shaders::kTitle;
+            row.description = recomp::shaders::MenuDescription(OwnShadersShared(), OwnShadersGame());
+            row.choices = list->labels;
+            row.value = [this, list] { return list->IndexOf(ownShader); };
+            row.setValue = [this, list](int at) {
+                ownShader = list->NameAt(at);
+                if (!opt.settingsPath.empty()) {
+                    recomp::Ini settings(opt.settingsPath);
+                    settings.load();
+                    recomp::shaders::Choose(settings, ownShader);
+                    settings.save();
+                }
+                if (FeatureValue("display_shader") != kYourOwnShaderChoice) {
+                    SetFeatureValue("display_shader", kYourOwnShaderChoice);
+                }
+            };
+            return row;
+        };
+    }
     if (TheGame().fighting) {
         menu.replaysPage = true;
         replay.folder = PlayerFolder().empty() ? "" : PlayerFolder() + "replays/"; // (online, the joining side's eepromPath goes)
@@ -426,6 +529,20 @@ bool Port::Init(std::string &error) {
         };
     }
     LoadFeatures(opt.settingsPath, opt.features);
+    if (std::filesystem::path launcher = LauncherFolder(); !launcher.empty() && !opt.settingsPath.empty()) {
+        // (the launcher's first-page switches, which the menu changes too: a collection's are in its own folder. Only
+        // for the settings.ini the launcher gives, in the game's folder beside it: a check's own settings never
+        // change the player's launcher)
+        if (launcher.filename().empty()) {
+            launcher = launcher.parent_path(); // (SDL's folder ends in a separator)
+        }
+        const bool collection = InCollection();
+        const std::filesystem::path gameFolder = collection ? launcher.parent_path() / std::filesystem::u8path(recomp::FolderName(GAME_NAME)) : launcher;
+        std::error_code error;
+        if (std::filesystem::equivalent(TextPath(opt.settingsPath).parent_path(), gameFolder, error)) {
+            SetLauncherSwitches(PathText(launcher / "launcher.ini"), collection ? "video." GAME_ID : "video");
+        }
+    }
     // The game's SH-2 code: translated (native), the interpreter run the same way block by block (free: the
     // translation's reference), or the interpreter an instruction at a time (interp)
     if (opt.cpu.empty()) {
@@ -469,31 +586,43 @@ namespace {
     const char *const kShaderPresets[] = {
         "crt/crt-geom-mini.slangp", "crt/crt-lottes.slangp", "crt/crt-royale.slangp", "crt/crt-guest-advanced-fast.slangp",
         "crt/zfast-crt.slangp", "scanlines/scanline-fract.slangp", "pixel-art-scaling/sharp-bilinear-scanlines.slangp",
-        "scanlines/ossc.slangp", "scanlines/integer-scaling-scanlines.slangp",
+        "scanlines/integer-scaling-scanlines.slangp",
         "edge-smoothing/xbrz/xbrz-freescale-multipass.slangp", "edge-smoothing/scalefx/scalefx.slangp",
     };
     constexpr int kYourOwnShader = 1 + static_cast<int>(std::size(kShaderPresets));
+    static_assert(kYourOwnShader == kYourOwnShaderChoice, "own_shader.h: the launcher's Your own is the Shader's last choice");
 } // namespace
 
-std::string Port::ShaderPreset() const {
+// Your own's folders (recomp-common/own_shaders.h): this game's, shaders/ beside settings.ini; and the one every game
+// shares, shaders/ in the launcher's folder (RECOMP_SHADERS, as the launcher says; else found from the game's folder,
+// a collection's launcher's folder beside it, as LauncherFolder names it)
+std::filesystem::path Port::OwnShadersGame() const {
+    return opt.settingsPath.empty() ? std::filesystem::path() : recomp::shaders::GameFolder(TextPath(opt.settingsPath).parent_path());
+}
+
+std::filesystem::path Port::OwnShadersShared() const {
+    const std::filesystem::path game = opt.settingsPath.empty() ? std::filesystem::path() : TextPath(opt.settingsPath).parent_path();
+    return recomp::shaders::SharedFolder(game, InCollection() ? kCollectionName : GAME_NAME);
+}
+
+std::string Port::ShaderPreset(std::string *why) const {
+    if (why) {
+        why->clear();
+    }
     if (!opt.shader.empty()) {
         return opt.shader;
     }
     const int value = FeatureValue("display_shader");
     std::error_code error;
     if (value == kYourOwnShader) {
-        // (the first .slangp, by name, in shaders/ beside settings.ini)
-        if (opt.settingsPath.empty()) {
-            return "";
+        // (the one chosen by name, or the first found: this game's own folder first, then the shared one)
+        const std::vector<recomp::shaders::Preset> found = recomp::shaders::Find(OwnShadersGame(), OwnShadersShared());
+        std::string problem;
+        const recomp::shaders::Preset *preset = recomp::shaders::Pick(found, ownShader, problem);
+        if (!preset && why) {
+            *why = problem + " (" + recomp::shaders::Utf8(OwnShadersShared()) + ")";
         }
-        std::vector<std::filesystem::path> found;
-        for (const auto &entry : std::filesystem::directory_iterator(TextPath(opt.settingsPath).parent_path() / "shaders", error)) {
-            if (entry.path().extension() == ".slangp") {
-                found.push_back(entry.path());
-            }
-        }
-        std::sort(found.begin(), found.end());
-        return found.empty() ? "" : PathText(found.front());
+        return preset ? recomp::shaders::Utf8(preset->file) : "";
     }
     if (value < 1 || value >= kYourOwnShader) {
         return "";
@@ -886,7 +1015,13 @@ void Port::Key(char key, unsigned n) {
             AskNextGame(static_cast<int64_t>(tick));
         }
         break;
+    case ']': PracticeSet(); break;
+    case 'w': rewindHeld = !rewindHeld; break; // (tests: the frontend sets it while R or the left trigger is held)
     case 'k':
+        // (with a practice point set, Backspace and Backslash are its)
+        if ((n == kKeyRestart && PracticeBack()) || (n == kKeyExtra && PracticeReplay())) {
+            break;
+        }
         if (n == kKeyRestart && ReplayRetry()) {
             break; // (a replay played on from: the moment it was taken over at, again)
         }
@@ -1051,7 +1186,9 @@ bool Port::Tick() {
             if (!net->ended.empty()) {
                 // (the other side gone: a window waits for them again; the host's leaving ends the joining side's)
                 const bool again = !opt.headless && (net->Hosting() ? net->left || net->lost : net->lost);
-                if (hostedFromMenu) {
+                if (net->SetFinished()) {
+                    quit = true; // (the set won and agreed: back to the launcher that started the game)
+                } else if (hostedFromMenu) {
                     BackToSolo(again); // (the other side gone: still hosted, the player's own game again)
                 } else if (again) {
                     Again(net->ended);
@@ -1071,6 +1208,23 @@ bool Port::Tick() {
     // (the next game asked for: the game's sources have had their time to end it their own way)
     if (NextGameAsked() >= 0 && tick >= static_cast<uint64_t>(NextGameAsked()) + kNextGameWait) {
         EndProgram(kNextGame);
+    }
+    // Rewind held (port.h, Rewind): a kept state back each tick, whatever the speed; not while the game's sources take
+    // it somewhere, nor stopped (there the left trigger steps on)
+    const bool rewinding = rewindHeld && RewindOn() && !paused && !FastForward() && !menu.IsOpen();
+    if (rewinding != rewind.was) {
+        rewind.was = rewinding;
+        rewind.ticks = 0;
+        if (!rewinding && shotSaid == recomp::i18n::Tr("REWINDING")) {
+            shotTicks = 0; // (let go: the notice goes with it)
+        }
+    }
+    if (rewinding) {
+        rewind.ticks++;
+        if (rewind.ticks == 1 || rewind.ticks % 30 == 0) {
+            Said("REWINDING");
+        }
+        return RewindTick();
     }
     if (FastForward()) {
         // The game's sources are taking the game somewhere: as fast as it goes, a slice at a time
@@ -1284,6 +1438,15 @@ void Port::ShownOver(std::vector<uint32_t> &pixels, std::vector<SDL_Rect> *panel
         if (!cameIn) {
             status("PRESS START TO JOIN", said++ * 14);
         }
+        if (net->Set().Winner() >= 0) {
+            const std::string who = net->Name(net->MachineAt(net->Set().Winner()));
+            std::string result = (who.empty() ? "PLAYER " + std::to_string(net->Set().Winner() + 1) : who) + " WINS THE FT" +
+                                 std::to_string(net->Set().Target()) + " SET";
+            for (char &c : result) {
+                c = static_cast<char>(toupper(static_cast<unsigned char>(c)));
+            }
+            status(result.c_str(), said++ * 14);
+        }
     }
     // (--net-arcade: the host playing while it waits; the wait, and the match's code to give, at the bottom)
     if (net && connecting && net->Arcade()) {
@@ -1332,15 +1495,81 @@ void Port::ShownOver(std::vector<uint32_t> &pixels, std::vector<SDL_Rect> *panel
                 panels->push_back({static_cast<int>(x) - 3, static_cast<int>(y) - 2, static_cast<int>(width) + 7, 12});
             }
         };
+        // (the score: a set's, or in Casual the games each side has won, in a game that says who wins its matches:
+        // FirstTo::Counting; along the very top, with the players' names beside it)
+        const bool strip = net->Set().Counting();
+        if (strip) {
+            auto small = [&](float x, const std::string &text, recomp::text::Color colour) {
+                canvas.Text(std::floor(x), 2, 1, 0, colour, text.c_str());
+            };
+            const std::string left = std::to_string(net->Set().Score(0));
+            const std::string format = net->Set().Target() ? "FT" + std::to_string(net->Set().Target()) : "-";
+            const std::string right = std::to_string(net->Set().Score(1));
+            const float leftWidth = recomp::text::TextWidth(left.c_str(), 1);
+            const float formatWidth = recomp::text::TextWidth(format.c_str(), 1);
+            const float rightWidth = recomp::text::TextWidth(right.c_str(), 1);
+            const float centre = (across - formatWidth) / 2.0f;
+            const float leftAt = centre - 6 - leftWidth, rightAt = centre + formatWidth + 6;
+            float x0 = leftAt - 3, x1 = rightAt + rightWidth + 3;
+            std::string names[2];
+            float nameAt[2] = {};
+            if (!FeatureOn("online_hide_names")) {
+                for (int side = 0; side < 2; side++) {
+                    names[side] = net->Name(net->MachineAt(side));
+                    if (names[side].empty()) {
+                        names[side] = "Player " + std::to_string(side + 1);
+                    }
+                    const float width = recomp::text::TextWidth(names[side].c_str(), 1);
+                    nameAt[side] = side == 0 ? leftAt - 9 - width : rightAt + rightWidth + 9;
+                    x0 = std::min(x0, nameAt[side] - 3);
+                    x1 = std::max(x1, nameAt[side] + width + 3);
+                }
+            }
+            canvas.Fill(x0, 0, x1 - x0, 11, {20, 22, 30, 220});
+            small(leftAt, left, {0, 220, 220, 255});
+            small(centre, format, {255, 210, 80, 255});
+            small(rightAt, right, {0, 220, 220, 255});
+            for (int side = 0; side < 2; side++) {
+                if (!names[side].empty()) {
+                    small(nameAt[side], names[side], {255, 255, 255, 255});
+                }
+            }
+            if (panels) {
+                panels->push_back({static_cast<int>(x0), 0, static_cast<int>(x1 - x0) + 1, 11});
+            }
+        }
+        // (each side's name under its life bar, where the score's strip hasn't it, and its win streak)
         for (int side = 0; side < 2; side++) {
             float y = 38.0f;
-            const std::string name = net->Name(side);
-            if (!FeatureOn("online_hide_names") && !name.empty()) {
+            const std::string name = net->Name(net->MachineAt(side));
+            if (!strip && !FeatureOn("online_hide_names") && !name.empty()) {
                 under(side, y, name, {255, 255, 255, 255});
                 y += 12;
             }
             if (streak[side] >= 2) {
                 under(side, y, "STREAK " + std::to_string(streak[side]), {255, 210, 80, 255});
+            }
+        }
+        // The network readout (online_stats), at the right under the life bar, in the small letters: the ping
+        // and its jitter, the input delay (both players', the host's choice), and the last second's rollbacks
+        if (notices && FeatureOn("online_stats") && net->Silent() <= 1000) {
+            int count = 0, most = 0;
+            net->Rollbacks(count, most);
+            const std::string lines[3] = {"PING " + std::to_string(net->Ping()) + " MS  JITTER " + std::to_string(net->Jitter()) + " MS",
+                                          "P" + std::to_string(net->SideOf(net->Local()) + 1) + " YOU  DELAY " + std::to_string(net->Delay()) +
+                                              "  P" + std::to_string(net->SideOf(1 - net->Local()) + 1) + "  DELAY " + std::to_string(net->Delay()),
+                                          "ROLLBACK " + std::to_string(most) + "F  " + std::to_string(count) + "/S"};
+            // (under player 2's life bar, and its name and streak: the strip and the bars at the top are the game's to show)
+            float y = 52.0f;
+            for (const std::string &text : lines) {
+                const float width = recomp::text::SmallTextWidth(text.c_str(), 1) - 1;
+                const float x = across - 3 - width;
+                canvas.Fill(x - 2, y, width + 4, 7, {20, 22, 30, 200});
+                canvas.SmallText(x, y + 1, 1, {255, 255, 255, 255}, text.c_str());
+                if (panels) {
+                    panels->push_back({static_cast<int>(x) - 2, static_cast<int>(y), static_cast<int>(width) + 5, 7});
+                }
+                y += 7;
             }
         }
         // The chat: its lines at the left, above the super gauges, the newest lowest, and the line being typed under them
@@ -1368,6 +1597,19 @@ void Port::ShownOver(std::vector<uint32_t> &pixels, std::vector<SDL_Rect> *panel
         }
         for (auto it = chat.rbegin(); it != chat.rend(); ++it) {
             line(it->text, it->own ? recomp::text::Color{170, 200, 255, 255} : recomp::text::Color{255, 255, 255, 255});
+        }
+    }
+    // (the FPS counter: in the top right corner, in the small letters, the frames handed to the screen a second)
+    if (notices && FeatureOn("fps_counter")) {
+        const recomp::text::Canvas canvas{pixels.data(), across, Video::kHeight};
+        char text[16];
+        snprintf(text, sizeof(text), "%.0f FPS", fps);
+        const float width = recomp::text::SmallTextWidth(text, 1) - 1;
+        const float x = across - 4 - width, y = 2;
+        canvas.Fill(x - 2, y, width + 4, 7, {20, 22, 30, 220});
+        canvas.SmallText(x, y + 1, 1, {255, 255, 255, 255}, text);
+        if (panels) {
+            panels->push_back({static_cast<int>(x) - 2, static_cast<int>(y), static_cast<int>(width) + 5, 7});
         }
     }
     // (online: the match's menu (Port::OpenOnlineMenu), over the game, which goes on; the port's own, not the readout,
@@ -1410,7 +1652,7 @@ bool Port::ShownPlain() const {
             return false;
         }
     }
-    if (!Boxes().empty() || replay.playing || (FeatureOn("input_lag") && !net)) {
+    if (!Boxes().empty() || replay.playing || (FeatureOn("input_lag") && !net) || FeatureOn("fps_counter")) {
         return false;
     }
     const bool hurried = hurry && !paused && !MultiGame().empty();
@@ -1669,29 +1911,6 @@ void Port::VideoFrame(const int16_t *sound, size_t soundFrames, const float *mus
     recorder.Picture(pixels.data(), across, down, port::PictureShape(across, down, shape, 4.0f / 3.0f), frames);
 }
 
-void Port::InstantState::From(const std::vector<uint8_t> &data, const InstantState *before) {
-    size = data.size();
-    const size_t count = (size + kBlock - 1) / kBlock;
-    blocks.assign(count, nullptr);
-    for (size_t i = 0; i < count; i++) {
-        const size_t at = i * kBlock, length = std::min(kBlock, size - at);
-        if (before && i < before->blocks.size() && before->blocks[i]->size() == length &&
-            memcmp(before->blocks[i]->data(), data.data() + at, length) == 0) {
-            blocks[i] = before->blocks[i];
-            continue;
-        }
-        blocks[i] = std::make_shared<const std::vector<uint8_t>>(data.begin() + static_cast<std::ptrdiff_t>(at),
-                                                                 data.begin() + static_cast<std::ptrdiff_t>(at + length));
-    }
-}
-
-void Port::InstantState::Into(std::vector<uint8_t> &data) const {
-    data.resize(size);
-    for (size_t i = 0; i < blocks.size(); i++) {
-        memcpy(data.data() + i * kBlock, blocks[i]->data(), blocks[i]->size());
-    }
-}
-
 // The instant replay (port.h, Instant): how many seconds are kept (the Video page's Replay length; 0: none)
 static int ReplaySeconds() {
     static const int kSeconds[] = {30, 60, 10, 0};
@@ -1734,6 +1953,179 @@ void Port::ReplayKeep(const uint16_t *pressed) {
     while (!instant.inputs.empty() && instant.inputsFrom < instant.kept.front().frame) {
         instant.inputs.pop_front();
         instant.inputsFrom++;
+    }
+}
+
+// Rewind and the practice point (port.h): never online, nor in a match replay played (its own Backspace and seeking)
+bool Port::RewindOn() const {
+    return FeatureOn("rewind") && !net && !opt.rollbackTest && !replay.playing;
+}
+bool Port::PracticeOn() const {
+    return FeatureOn("practice_point") && !net && !opt.rollbackTest && !replay.playing;
+}
+
+void Port::Said(const char *what) {
+    shotSaid = recomp::i18n::Tr(what);
+    shotTicks = kSpeedTicks;
+}
+
+void Port::RewindKeep(const uint16_t *pressed) {
+    if (!RewindOn()) {
+        if (!rewind.ring.Empty()) {
+            rewind.ring.Clear();
+        }
+        return;
+    }
+    if (frame % kRewindEvery != 0 && !rewind.ring.Empty()) {
+        return;
+    }
+    static_assert(sizeof(StateRing::Input::players) == sizeof(uint16_t) * Machine::kMaxPlayers);
+    StateRing::Input input;
+    memcpy(input.players, pressed, sizeof(input.players));
+    input.service = machine->serviceButton;
+    input.test = machine->testSwitch;
+    const auto began = std::chrono::steady_clock::now();
+    static std::vector<uint8_t> state, stage;
+    KeepState(state);
+    machine->KeepStage(stage);
+    rewind.ring.Push(frame, input, state, stage, kRewindMost, kRewindMostBytes);
+    // (tests: CPS3RECOMP_REWIND_LOG, what it costs: every 10 seconds, the states kept, their memory, the last keep's time)
+    if (static const bool log = getenv("CPS3RECOMP_REWIND_LOG") != nullptr; log && frame % 600 == 0) {
+        fprintf(stderr, "rewind: frame %llu, %zu states, %.1f MB, keeping took %.3f ms\n", static_cast<unsigned long long>(frame),
+                rewind.ring.Size(), rewind.ring.Bytes() / 1048576.0,
+                std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - began).count());
+    }
+}
+
+// The frame count gone back (rewind, the practice point): what came after it is gone. The instant replay's states and
+// controls are kept again from here, and a match being kept ends (as a save state loaded ends it)
+void Port::GoneBack() {
+    instant.kept.clear();
+    instant.inputs.clear();
+    ReplayEnd();
+}
+
+// The newest kept state put back and its frame run again with its controls (drawn, not heard), so the picture is the
+// frame after it; the frame count goes back with it, and the practice attempt's controls past here go
+bool Port::RewindTick() {
+    StateRing::Kept kept;
+    if (!rewind.ring.Pop(kept)) {
+        Said("NO FURTHER BACK");
+        return false;
+    }
+    static std::vector<uint8_t> state;
+    kept.state.Into(state);
+    PutBackState(state);
+    kept.stage.Into(state);
+    machine->RestoreStage(state);
+    machine->serviceButton = kept.input.service;
+    machine->testSwitch = kept.input.test;
+    const size_t sound = machine->audio.size();
+    Step(kept.input.players);
+    machine->StepStage(); // (as RunFrame: the stage board, once a frame)
+    machine->audio.resize(sound);
+    frame = kept.frame + 1;
+    GoneBack();
+    if (!practice.state.empty()) {
+        if (frame <= practice.frame) {
+            practice.attempt.clear();
+        } else if (practice.attempt.size() > frame - practice.frame) {
+            practice.attempt.resize(static_cast<size_t>(frame - practice.frame));
+        }
+        practice.replaying = false;
+    }
+    return true;
+}
+
+void Port::PracticeSet() {
+    if (!PracticeOn()) {
+        return;
+    }
+    KeepState(practice.state);
+    machine->KeepStage(practice.stage);
+    practice.frame = frame;
+    practice.attempt.clear();
+    practice.last.clear();
+    practice.replaying = false;
+    Said("PRACTICE POINT SET");
+}
+
+bool Port::PracticeBack() {
+    if (!PracticeOn() || practice.state.empty()) {
+        return false;
+    }
+    PutBackState(practice.state);
+    machine->RestoreStage(practice.stage);
+    frame = practice.frame;
+    if (!practice.attempt.empty()) {
+        practice.last = std::move(practice.attempt);
+    }
+    practice.attempt.clear();
+    practice.replaying = false;
+    rewind.ring.DropFrom(frame);
+    GoneBack();
+    Said("BACK TO THE PRACTICE POINT");
+    return true;
+}
+
+bool Port::PracticeReplay() {
+    if (!PracticeOn() || practice.state.empty()) {
+        return false;
+    }
+    if (!practice.replaying) {
+        practice.replay = !practice.attempt.empty() ? practice.attempt : practice.last;
+    }
+    if (practice.replay.empty()) {
+        Said("NOTHING TO REPLAY YET");
+        return true;
+    }
+    PutBackState(practice.state);
+    machine->RestoreStage(practice.stage);
+    frame = practice.frame;
+    practice.last = practice.replay;
+    practice.attempt.clear();
+    practice.replaying = true;
+    practice.replayAt = 0;
+    memcpy(practice.heldAtReplay, pad, sizeof(practice.heldAtReplay));
+    rewind.ring.DropFrom(frame);
+    GoneBack();
+    Said("REPLAY: A BUTTON TAKES OVER");
+    return true;
+}
+
+void Port::PracticeInput(uint16_t *pressed) {
+    if (practice.state.empty() || replay.playing) {
+        return;
+    }
+    if (!PracticeOn()) {
+        practice = {};
+        return;
+    }
+    if (practice.replaying) {
+        // (a button pressed that was not held when the replay began: the player's again from here)
+        bool taken = practice.replayAt >= practice.replay.size();
+        for (int p = 0; p < Machine::kMaxPlayers && !taken; p++) {
+            taken = (pad[p] & ~practice.heldAtReplay[p]) != 0;
+        }
+        for (int p = 0; p < Machine::kMaxPlayers; p++) {
+            practice.heldAtReplay[p] &= pad[p]; // (let go, and pressed again, it counts)
+        }
+        if (taken) {
+            practice.replaying = false;
+        } else {
+            const StateRing::Input &input = practice.replay[practice.replayAt++];
+            memcpy(pressed, input.players, sizeof(input.players));
+            machine->serviceButton = input.service;
+            machine->testSwitch = input.test;
+        }
+    }
+    constexpr size_t kMostFrames = 60 * 60 * 10; // (ten minutes of controls)
+    if (practice.attempt.size() < kMostFrames) {
+        StateRing::Input input;
+        memcpy(input.players, pressed, sizeof(input.players));
+        input.service = machine->serviceButton;
+        input.test = machine->testSwitch;
+        practice.attempt.push_back(input);
     }
 }
 
@@ -1979,6 +2371,9 @@ void Port::PutBackState(const std::vector<uint8_t> &data, bool inMemory) {
 void Port::Step(const uint16_t *players) {
     SoundtrackFollow();
     memcpy(machine->players, players, sizeof(machine->players));
+    if (onlineReselect.boot >= 0) {
+        OnlineReselectBoot(); // (both players on their way back to character select: the controls this does)
+    }
     if (TheGame().beforeFrame) {
         TheGame().beforeFrame(*machine);
     }
@@ -2082,7 +2477,8 @@ void Port::RollbackFrame(const uint16_t *real) {
 // shows what a press does a frame or two sooner. Not done for a frame a spare machine ran in (runtime/spare.h).
 bool Port::RunsAhead() const {
     // (nor while stopped, stepped a frame at a time or slowed: there the frame shown is the frame)
-    return FeatureValue("run_ahead") > 0 && !FastForward() && !hurry && !paused && menu.FullSpeed() && !(replay.playing && !replay.anyTaken()) &&
+    return FeatureValue("run_ahead") > 0 && !FastForward() && !hurry && !paused && menu.FullSpeed() && !rewind.was &&
+           !(replay.playing && !replay.anyTaken()) &&
            !(TheGame().noRunAhead && TheGame().noRunAhead());
 }
 
@@ -2146,6 +2542,20 @@ void Port::LagMeasure() {
 void Port::LagPressed(uint64_t ns) {
     if (!lag.pressedAt && !menu.IsOpen()) {
         lag.pressedAt = ns;
+    }
+}
+
+void Port::FrameShown(uint64_t ns) {
+    if (!fpsFrom || ns < fpsFrom) {
+        fpsFrom = ns;
+        fpsFrames = 0;
+        return;
+    }
+    fpsFrames++;
+    if (ns - fpsFrom >= 500000000ull) {
+        fps = fpsFrames * 1e9 / static_cast<double>(ns - fpsFrom);
+        fpsFrom = ns;
+        fpsFrames = 0;
     }
 }
 
@@ -2228,34 +2638,17 @@ void Port::RunFramesAhead(int ahead, const uint16_t *players, void (*shown)(Port
     memcpy(machine->players, were, sizeof(were));
 }
 
-// Online: a round's result, the frame it comes (once: a second's quiet after it before the next, so that a frame run
-// again in a rollback is not counted twice), and a match won when a player has won its rounds
-void Port::Streaks() {
-    const int result = -1; // (no round results yet: the fight module is not here yet)
-    if (result < 0) {
-        return; // (not a fighting game)
-    }
-    if (result == 0) {
-        if (++roundQuiet >= 60) {
-            roundCounted = false;
-        }
-        return;
-    }
-    roundQuiet = 0;
-    if (roundCounted) {
-        return;
-    }
-    roundCounted = true;
-    if (result == 3 || !cameIn || !otherIn) {
-        return; // (a draw; or a fight against the computer, before both have come in)
-    }
-    const int winner = result - 1;
-    if (++roundsWon[winner] >= 2) {
-        streak[winner]++;
-        streak[1 - winner] = 0;
-        roundsWon[0] = roundsWon[1] = 0;
-        fprintf(stderr, "online: player %d won the match (%d in a row)\n", winner + 1, streak[winner]);
-    }
+// Online: a match the set has counted (on a confirmed frame, Netplay::Frame): the winner's streak one more, the
+// other's over
+void Port::OnlineWon(int side) {
+    streak[side]++;
+    streak[1 - side] = 0;
+    fprintf(stderr, "online: player %d won the match (%d in a row)\n", side + 1, streak[side]);
+}
+
+// ... and the host's Swap sides: the streaks were the other side's people's
+void Port::OnlineSidesSwapped() {
+    streak[0] = streak[1] = 0;
 }
 
 // Online play (netplay.h): the other side found and agreed with before the first frame; with a window, a step a tick
@@ -2407,6 +2800,7 @@ void Port::StopHosting() {
 
 void Port::BackToSolo(bool stillHosting) {
     ReplayEnd();
+    onlineReselect = {}; // (the way back to character select, if it was on its way: the match's, over)
     Netplay::Settings settings = opt.net;
     if (net) {
         if (!net->code.empty()) {
@@ -2457,9 +2851,10 @@ namespace {
         }
         return nullptr;
     }
-    // A player's own rows on the Tag team battle page (player 1's the host's, plus team_size; player 2's the other side's)
-    bool OwnRow(int player, const std::string &row) {
-        return row.rfind(player == 0 ? "team_1_" : "team_2_", 0) == 0 || (player == 0 && row == "team_size");
+    // A player's own rows on the Tag team battle page: the board's player 1's or player 2's (the host's side, or the
+    // other's, unless the host has swapped the sides), and the host's team_size
+    bool OwnRow(int player, int side, const std::string &row) {
+        return row.rfind(side == 0 ? "team_1_" : "team_2_", 0) == 0 || (player == 0 && row == "team_size");
     }
     bool TagTeamOnline() {
         return TheGame().startOnline && FindFeature("team_size") && FindFeature("team_1_1");
@@ -2536,7 +2931,34 @@ void Port::OnlineSetupFrame() {
     }
 }
 
-void Port::OnlineEvent(int player, const std::string &text, uint64_t at) {
+bool Port::OnlineReselectHere() const {
+    return net && !connecting && TheGame().joined;
+}
+
+// The board started again for both players' character select: coins, then the Starts, until both are in (the players'
+// own controls left out meanwhile). As training's way there (fight/session.cpp, Boot), but a frame of the match each,
+// the same on both machines.
+void Port::OnlineReselectBoot() {
+    constexpr int32_t kMost = 4000; // (frames: given up after them)
+    uint16_t &one = machine->players[0], &two = machine->players[1];
+    one = two = 0;
+    if ((TheGame().joined(0) && TheGame().joined(1)) || ++onlineReselect.boot > kMost) {
+        fprintf(stderr, "online: %s after %d frames\n", onlineReselect.boot > kMost ? "not both at character select" : "both at character select",
+                onlineReselect.boot);
+        onlineReselect.boot = -1;
+        return;
+    }
+    const bool press = onlineReselect.boot % 16 < 6;
+    if (TheGame().credits && Ram8(TheGame().credits) < 2 && !FeatureOn("free_play")) {
+        one = press ? kCoin : 0;
+    } else if (!TheGame().joined(0)) {
+        one = press ? kStart : 0;
+    } else {
+        two = press ? kStart : 0;
+    }
+}
+
+void Port::OnlineEvent(int player, int side, const std::string &text, uint64_t at) {
     for (size_t from = 0; from < text.size();) {
         const size_t comma = std::min(text.find(',', from), text.size());
         const std::string item = text.substr(from, comma - from);
@@ -2546,7 +2968,19 @@ void Port::OnlineEvent(int player, const std::string &text, uint64_t at) {
             continue;
         }
         const std::string name = item.substr(0, eq);
-        if (name == "setup" && player == 0) {
+        if (name == "reselect" && (player == 0 || player == 1) && OnlineReselectHere()) {
+            onlineReselect.asked[player] = atoi(item.c_str() + eq + 1) != 0;
+            if (onlineReselect.asked[0] && onlineReselect.asked[1]) {
+                fprintf(stderr, "online: both asked to pick characters again: the board starts again at frame %llu\n",
+                        static_cast<unsigned long long>(at));
+                // (the mode ended, the board started again: Back to Versus's)
+                if (!TheGame().startOnline || !TheGame().startOnline(*machine, 0, 1)) {
+                    machine->Reset();
+                }
+                onlineReselect = {};
+                onlineReselect.boot = 0;
+            }
+        } else if (name == "setup" && player == 0) {
             onlineSetupLog[at] = atoi(item.c_str() + eq + 1) != 0;
         } else if (name == "ready" && player == 1) { // (the other player's: their Ready, Port::onlineReadyLog)
             onlineReadyLog[at] = atoi(item.c_str() + eq + 1) != 0;
@@ -2571,7 +3005,7 @@ void Port::OnlineEvent(int player, const std::string &text, uint64_t at) {
                 SetFeatureForNow(row.c_str(), value);
             }
             TheGame().startOnline(*machine, mode, seed);
-        } else if (OwnRow(player, name)) {
+        } else if (OwnRow(player, side, name)) {
             const Feature *feature = FindFeature(name);
             const int value = atoi(item.c_str() + eq + 1);
             if (feature && value >= 0 && value < static_cast<int>(std::max<size_t>(feature->choices.size(), 2))) {
@@ -2600,8 +3034,10 @@ void Port::OpenOnlineMenu(bool keep) {
         return;
     }
     const int me = net->Local();
+    const int mySide = net->SideOf(me); // (the board's player this machine plays: the host's 1 unless swapped)
     Menu::Online online;
     onlineModes.clear();
+    onlineMore.clear();
     onlineRows.clear();
     if (TagTeamOnline()) {
         const auto sizeIt = onlinePicks.find("team_size");
@@ -2627,7 +3063,7 @@ void Port::OpenOnlineMenu(bool keep) {
         const int size = sizeVal == 1 ? 3 : 2;
         static const char *const kOrder[3] = {"first", "second", "third"};
         for (int n = 0; n < size; n++) {
-            const std::string row = "team_" + std::to_string(me + 1) + "_" + std::to_string(n + 1);
+            const std::string row = "team_" + std::to_string(mySide + 1) + "_" + std::to_string(n + 1);
             for (const std::string &feature : {row, row + "_art"}) {
                 const Feature *found = FindFeature(feature);
                 if (!found) {
@@ -2656,6 +3092,25 @@ void Port::OpenOnlineMenu(bool keep) {
                                        "then. Changing a fighter takes it back.",
                                        {"Not yet", "Ready"}});
         }
+    }
+    // (after the modes: the host's Swap sides, and either player's Pick characters again)
+    if (net->Hosting()) {
+        onlineMore.push_back("swap");
+        online.commands.push_back({Menu::kOnlinePage, mySide == 0 ? "Swap sides (you play player 2)" : "Swap sides (you play player 1)",
+                                   "Swaps who plays player 1 and player 2 now, without leaving the match: player 1 first. Each "
+                                   "player keeps their own controller, and their fighters' picks are the side's. The set's score "
+                                   "and the win streaks start again from 0-0."});
+    }
+    if (OnlineReselectHere()) {
+        const bool mine = onlineReselect.asked[me] != 0, theirs = onlineReselect.asked[1 - me] != 0;
+        onlineMore.push_back("reselect");
+        online.commands.push_back({Menu::kOnlinePage,
+                                   mine     ? "Pick characters again: asked (choose to take it back)"
+                                   : theirs ? "Pick characters again: the other player asked, choose to agree"
+                                            : "Pick characters again",
+                                   "Both players back to the character select, the winner too: once the other player chooses this "
+                                   "as well, the game starts again and both of you are put in to choose. The other player is told "
+                                   "that you asked. The set's score stays as it is."});
     }
     online.value = [this](size_t row) {
         if (row >= onlineRows.size()) {
@@ -2691,6 +3146,16 @@ void Port::OpenOnlineMenu(bool keep) {
 }
 
 void Port::OnlineCommand(size_t index) {
+    if (net && index >= onlineModes.size() && index - onlineModes.size() < onlineMore.size()) {
+        const std::string &what = onlineMore[index - onlineModes.size()];
+        if (what == "swap" && net->Hosting()) {
+            net->Command(Netplay::kSwap);
+        } else if (what == "reselect") {
+            net->Command(onlineReselect.asked[net->Local()] ? "reselect=0" : "reselect=1");
+        }
+        menu.Close();
+        return;
+    }
     if (net && index < onlineModes.size() && onlineModes[index] != 0 && TagTeamOnline() && !OnlineOtherReady()) {
         // (the other player still choosing: started when they say Ready, the menu left open and the game paused)
         onlinePendingMode = onlineModes[index];
@@ -2741,11 +3206,19 @@ void Port::HearEvents() {
                     }
                     said = value ? "The host paused the game: choose your team, then Ready" : "The game goes on";
                 }
+            } else if (row == "reselect" && (player == 0 || player == 1) && OnlineReselectHere()) {
+                const bool own = player == net->Local();
+                said = value ? who + (own ? " asked" : " asks") + " to pick characters again" +
+                                   (own ? " (when the other player agrees)" : ": Esc, Pick characters again to agree")
+                             : who + " took back the ask to pick characters again";
+            } else if (row == "swap" && player == 0) {
+                // (said as it is made: the sides are the other way round from the event's frame on)
+                said = who + " swapped the sides: you are player " + std::to_string(2 - net->SideOf(net->Local())) + " now";
             } else if (row == "ready" && player == 1) {
                 said = who + (player == net->Local() ? (value ? " are ready" : " are choosing") : (value ? " is ready" : " is choosing"));
             } else if (row == "mode" && player == 0 && value >= 0 && value < 3) {
                 said = who + (value == 0 ? " went back to Versus" : std::string(" started ") + kOnlineModes[value]);
-            } else if (const Feature *feature = FindFeature(row); feature && OwnRow(player, row) && value >= 0 &&
+            } else if (const Feature *feature = FindFeature(row); feature && OwnRow(player, net->SideOf(player), row) && value >= 0 &&
                                                                    value < static_cast<int>(feature->choices.size())) {
                 if (row == "team_size") {
                     said = who + " set Tag team to " + feature->choices[value] + " vs " + feature->choices[value];
@@ -2853,8 +3326,9 @@ void Port::Matched() {
     if (net->Arcade()) {
         fprintf(stderr, "online: the match begins after %llu frames of the host's play\n", static_cast<unsigned long long>(frame));
     }
-    streak[0] = streak[1] = roundsWon[0] = roundsWon[1] = 0;
-    roundCounted = false;
+    streak[0] = streak[1] = 0;
+    onlineReselect = {};
+    net->BeginSet(); // (the host's features taken by both: online_first_to among them)
     rejoin.clear();
     onlinePickLog.clear();
     onlinePickBase.clear();
@@ -2903,6 +3377,7 @@ void Port::RapidFire() {
 }
 
 void Port::RunFrame() {
+    port::TestCrashAt(frame); // (CPS3RECOMP_TEST_CRASH_AT_FRAME: crash_log.h)
     if (!opt.replayPlay.empty() && frame == 0 && !replay.playing) {
         std::string why;
         if (!ReplayPlay(opt.replayPlay, why)) {
@@ -2911,10 +3386,16 @@ void Port::RunFrame() {
         opt.replayPlay.clear();
     }
     if (!opt.moviePlay.empty()) {
-        auto it = playMovie.changes.find(frame);
-        if (it != playMovie.changes.end()) {
-            std::copy(it->second.begin(), it->second.end(), pad);
+        // (the change at this frame or the last before it: the same as each change in turn, and right after the frame
+        // count goes back, rewind's or the practice point's)
+        auto it = playMovie.changes.upper_bound(frame);
+        if (it != playMovie.changes.begin()) {
+            --it;
+            if (it->first == frame || frame != movieNext) {
+                std::copy(it->second.begin(), it->second.end(), pad);
+            }
         }
+        movieNext = frame + 1;
     } else if (opt.autoPlay) {
         // Made-up play, to reach as much of the game as it can: coins and start buttons now and then, sticks
         // and buttons at random, held for random lengths of time. The same seed gives the same run.
@@ -3012,13 +3493,14 @@ void Port::RunFrame() {
     } else if (net) {
         net->Frame(*this, pressed[0]); // (this side's player plays with player 1's controls)
         cameIn = cameIn || (pressed[0] & kStart);
-        otherIn = otherIn || (machine->players[1 - net->Local()] & kStart);
-        Streaks();
+        otherIn = otherIn || (machine->players[net->SideOf(1 - net->Local())] & kStart);
     } else if (opt.rollbackTest) {
         RollbackFrame(pressed);
     } else {
+        PracticeInput(pressed); // (the practice point's replay, and its attempt's controls: port.h, Practice)
         ReplayBefore(pressed);
-        ReplayKeep(pressed); // (the instant replay's: the state now and then, the controls every frame)
+        ReplayKeep(pressed);    // (the instant replay's: the state now and then, the controls every frame)
+        RewindKeep(pressed);    // (rewind's: a state every few frames)
         Step(pressed);
         ReplayAfter();
     }
@@ -3531,6 +4013,15 @@ int main(int argc, char **argv) {
         freopen("CONOUT$", "w", stderr);
     }
     recomp::UseSystemProxy();  // (Windows' proxy, for the curl that asks the online service: recomp-common/proxy.h)
+    // (Bandicam's Vulkan layer, registered when it is installed and loaded into every Vulkan program even with
+    // Bandicam closed, crashes as the GPU device is made (bdcamvk64.dll reads address 0; cps2recomp #446): the Vulkan
+    // loader leaves it out. A player who sets the loader's list themselves keeps theirs)
+    if (!getenv("VK_LOADER_LAYERS_DISABLE")) {
+        _putenv_s("VK_LOADER_LAYERS_DISABLE", "*bandicam*,*bdcam*");
+    }
+#endif
+#ifndef __ANDROID__
+    port::KeepLogOnCrash(); // (the output written as it goes, so a crash keeps logs/game.log: port/crash_log.h)
 #endif
 #ifdef __ANDROID__
     port::StartOnAndroid();
@@ -3792,7 +4283,8 @@ int main(int argc, char **argv) {
             return 5;
         }
         fprintf(stderr, "online: %s\n", p.net->ended.c_str());
-        if (!p.opt.headless) {
+        // (a finished set closes quietly: the launcher that started the game is still there, waiting for it)
+        if (!p.opt.headless && !p.net->SetFinished()) {
             SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_INFORMATION, GAME_NAME, p.net->ended.c_str(), nullptr);
         }
     }

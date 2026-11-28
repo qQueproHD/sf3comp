@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <iterator>
 
 namespace port {
 
@@ -91,7 +92,56 @@ struct Picture {
     }
 };
 
+constexpr SDL_TouchID kScriptedTouch = 0x5C819700D0000001ull; // (checks' fingers: Scripted)
+
+// A finger on a screen the picture is on (a phone's, a handheld's), not a laptop's or a Mac's touchpad
+bool OnScreen(const SDL_TouchFingerEvent &finger) {
+    return finger.touchID == kScriptedTouch || SDL_GetTouchDeviceType(finger.touchID) == SDL_TOUCH_DEVICE_DIRECT;
+}
+
 } // namespace
+
+void TouchControls::Allow(bool allowed) {
+    if (allowed == m_allowed) {
+        return;
+    }
+    m_allowed = allowed;
+    m_fingers.clear();
+    m_lingering.clear();
+    m_stick = 0;
+    m_stickX = m_knobX = m_homeX;
+    m_stickY = m_knobY = m_homeY;
+    Changed();
+}
+
+void TouchControls::Floating(bool on) {
+    if (on == m_floating) {
+        return;
+    }
+    m_floating = on;
+    m_fingers.clear();
+    m_lingering.clear();
+    m_stick = 0;
+    m_stickX = m_knobX = m_homeX;
+    m_stickY = m_knobY = m_homeY;
+    Changed();
+}
+
+void TouchControls::Scripted(SDL_EventType type, float x, float y) {
+    SDL_Event event{};
+    event.type = type;
+    event.tfinger.touchID = kScriptedTouch;
+    event.tfinger.fingerID = 1;
+    event.tfinger.x = m_width > 0 ? x / m_width : 0;
+    event.tfinger.y = m_height > 0 ? y / m_height : 0;
+    Event(event);
+}
+
+bool TouchControls::InStick(float x, float y) const {
+    (void)y;
+    // (fixed: the left part, beside the picture; floating: the left half of the screen)
+    return x < (m_floating ? m_width * 0.5f : std::max(m_picture.x, m_width * 0.2f) * 1.15f);
+}
 
 TouchControls::TouchControls() {
 #ifdef __ANDROID__
@@ -125,8 +175,8 @@ void TouchControls::Layout(int width, int height, const SDL_FRect &picture) {
     // Each side: the room beside the picture, or a fifth of the window if there is less (then over the picture)
     const float side = std::max(picture.x, w * 0.2f);
     m_stickRadius = std::min(side * 0.4f, h * 0.2f);
-    m_stickX = side * 0.5f;
-    m_stickY = h * 0.66f;
+    m_homeX = m_stickX = side * 0.5f;
+    m_homeY = m_stickY = h * 0.66f;
     m_knobX = m_stickX;
     m_knobY = m_stickY;
     m_controls.clear();
@@ -195,6 +245,12 @@ bool TouchControls::Event(const SDL_Event &event) {
         return false;
     default: return false;
     }
+    if (before && OnScreen(event.tfinger) && before(event, event.tfinger.x * m_width, event.tfinger.y * m_height)) {
+        return true;
+    }
+    if (!m_allowed || !OnScreen(event.tfinger)) {
+        return true;
+    }
     m_touched = SDL_GetTicks();
     if (!m_shown || m_idle) {
         m_shown = true;
@@ -210,8 +266,8 @@ bool TouchControls::Event(const SDL_Event &event) {
                     m_lingering.push_back({m_stick, kLeast - it->second.reads});
                 }
                 m_stick = 0;
-                m_knobX = m_stickX;
-                m_knobY = m_stickY;
+                m_stickX = m_knobX = m_homeX; // (floating: back where it is drawn)
+                m_stickY = m_knobY = m_homeY;
             } else if (it->second.reads < kLeast) {
                 m_lingering.push_back({m_controls[static_cast<size_t>(it->second.control)].bits, kLeast - it->second.reads});
             }
@@ -222,11 +278,21 @@ bool TouchControls::Event(const SDL_Event &event) {
     }
     auto it = m_fingers.find(finger);
     if (event.type == SDL_EVENT_FINGER_DOWN) {
-        // The stick takes a finger anywhere in the left part away from the buttons at the top
+        // The stick takes a finger anywhere in its part of the screen away from the buttons; floating, its middle is
+        // where the finger went down (one finger on it at a time: a second put down there is the stick's from there)
         const int hit = Hit(x, y);
-        const bool stick = hit < 0 && x < std::max(m_picture.x, m_width * 0.2f) * 1.15f;
+        const bool stick = hit < 0 && InStick(x, y);
         if (hit < 0 && !stick) {
             return true;
+        }
+        if (stick) {
+            for (auto other = m_fingers.begin(); other != m_fingers.end();) {
+                other = other->second.control < 0 ? m_fingers.erase(other) : std::next(other);
+            }
+            if (m_floating) {
+                m_stickX = x;
+                m_stickY = y;
+            }
         }
         if (hit >= 0 && m_controls[static_cast<size_t>(hit)].menu) {
             m_menuPressed = true;
@@ -282,7 +348,7 @@ uint16_t TouchControls::Read(bool menuOpen) {
         left--;
     }
     m_lingering.erase(std::remove_if(m_lingering.begin(), m_lingering.end(), [](const auto &l) { return l.second <= 0; }), m_lingering.end());
-    m_read = m_shown ? bits : 0;
+    m_read = Shown() ? bits : 0;
     return m_read;
 }
 
@@ -304,7 +370,7 @@ bool TouchControls::TakeZoomPress() {
 }
 
 bool TouchControls::TakePicture(std::vector<uint32_t> &pixels, int &width, int &height) {
-    if (m_shown && !m_idle && m_fingers.empty() && SDL_GetTicks() - m_touched > kIdleMs) {
+    if (Shown() && !m_idle && m_fingers.empty() && SDL_GetTicks() - m_touched > kIdleMs) {
         m_idle = true;
         Changed();
     }
@@ -312,7 +378,7 @@ bool TouchControls::TakePicture(std::vector<uint32_t> &pixels, int &width, int &
         return false;
     }
     m_changed = false;
-    if (!m_shown || m_idle || m_width <= 0 || m_height <= 0) {
+    if (!Shown() || m_idle || m_width <= 0 || m_height <= 0) {
         pixels.clear();
         return true;
     }

@@ -6,27 +6,61 @@ prints them all with their descriptions. Online, the host's choices of the ones 
 
 | Group | Features |
 | --- | --- |
-| Game | Widescreen (stage drawn out, or the board's own walls), Gill playable, free play, straight to the title, fight music from any stage, the definitive version's stages (New Generation's and 2nd Impact's, with their sets) and load ahead, arcade timing, run-ahead, rapid fire |
+| Game | Widescreen (stage drawn out, or the board's own walls), Gill playable, free play, straight to the title, fight music from any stage, the definitive version's stages (New Generation's and 2nd Impact's, with their sets) and load ahead, arcade timing, run-ahead, rewind and a practice point, rapid fire |
 | Cheats | No damage, no stun (each player), one hit knocks out, full super art gauge, infinite time |
 | Training mode | Stage, hit boxes, input display, frame data and its log, frame meter, combo, damage, stun and parry readouts, health and gauge refill, start over |
 | Dummy | Stand, crouch or jump; guard (always, after a hit, at random) and what it does after; parries, escapes throws, gets up quickly, mashes out of stun, reversals; record and replay (slots); played by the game at a chosen level |
 | Alternative modes | Survival, endless battle, ring out, tag team battle (tag, knock-out, co-op and 2 vs 2), bonus games, stage viewer, model viewer, colour editor, attract mode |
 | Board | Difficulty, damage, timer speed, rounds, event, bonus games, continue, demo sound, sound output (stereo or the cabinet's mono); the board's test menu |
-| Display | Scaling, picture shape (4:3 or square pixels), RetroArch shaders, zoom on a fighter or both, vsync, window size |
+| Display | Scaling, picture shape (4:3 or square pixels), RetroArch shaders (and your own presets, from one shaders folder every game shares, chosen by name), zoom on a fighter or both, vsync, window size |
 | Sound | Custom soundtrack (your own files, by song or as a playlist) |
 | Screenshots | F12, as PNG; SVG pictures too |
 | Scene export | Save scene (Shift+F12), record clip (Ctrl+F12) and its length, show the scenes folder |
 | Video | Record video (Alt+F12), video size, save replay (Alt+Shift+F12) and its length, show the videos folder |
 | Online | Ping and input delay shown, names hidden |
-| Display | Input lag readout |
+| Display | Input lag readout, FPS counter |
 | Replays | Keep my matches (the Replays page lists them to watch and to play on from) |
 
 The table is the definitive version's (3rd Strike, 990512). The launcher's other games (New Generation, 2nd Impact,
 3rd Strike 990608 and 4rd Strike) have the shared part of it: free play, straight to the title, the board's settings,
-cheats, training mode and the dummy, widescreen, online play, replays, run-ahead and the input lag readout.
+cheats, training mode and the dummy, widescreen, online play, replays, run-ahead, rewind and the practice point, and the
+input lag readout.
 
 How each part works and what it was checked against: [games/sfiii3/PROGRESS.md](../games/sfiii3/PROGRESS.md),
 [games/sfiii3/DEFINITIVE.md](../games/sfiii3/DEFINITIVE.md) (the stages), [docs/TIMING.md](TIMING.md) (arcade timing).
+
+## Rewind and the practice point
+
+Two switches on the Game page of the in-game menu (and the launcher's Features page), off unless chosen, in every game
+and never online, nor while a match replay plays (its own Backspace and seeking are its); as cps2recomp's.
+
+| Switch | Keys (gamepad) | What it does |
+| --- | --- | --- |
+| Practice point | `]` sets it (the left shoulder held half a second), Backspace goes back (the shoulder tapped), Backslash replays (the shoulder with the left trigger held) | The game as it is that instant, kept in memory and put back at once, as often as you like. Replay shows your last attempt from the point again, the controls as you pressed them, until you press a button |
+| Rewind | hold R (the left trigger) | The game runs backwards, three times as fast as play, through its last half a minute or so, without sound; let go and play on from there |
+
+Until a practice point is set, Backspace (the left shoulder) is training's Start over, as before. With rewind on, the
+left trigger rewinds while the game runs (stopped, it still goes on a frame at a time), in place of the tag team
+battle's Tag (Start still does it).
+
+**Rewind** keeps the game's state (a save state's, `Port::KeepState`, and a guest stage's board's beside it) every 3
+frames, before the frame runs, with that frame's controls, in a ring of at most 600 (`cps3recomp/port/rewind.h`,
+`StateRing`). Each state shares the blocks that are the same as the one before it, as the instant replay's do
+(`BlockState`, which is `Port::InstantState`), in blocks of 4 KB rather than 64: so half a minute of a fight is
+about 140 MB (on a New Generation or 2nd Impact stage, whose board is kept too, about 230 MB; 384 MB at
+most), and keeping one takes 1 to 2 ms. Held, each tick puts the newest back and runs its frame
+again with its controls, drawn and unheard, so the game goes back three frames a tick; the frame count goes back with
+it, the instant replay's states start again from there, and a match being kept for the Replays page ends there, as
+a save state loaded ends it. **The practice point** is one state kept by `]`, put back by Backspace, and the controls
+of every frame since, which Backslash plays again from the point until a button is pressed that was not held when it
+began.
+
+`--keys TICK:]`, `TICK:k1` and `TICK:k2` press them in a headless run, and `TICK:w` holds rewind down (again: lets
+it go); a movie (`--movie`) follows the frame count back. `cps3recomp/tools/check_rewind.sh ROMSET [FRAMES]` checks
+that the game comes out as it would without them: on and unused, every frame's hash the same; a point set and gone
+back to 300 frames later, rewind held 60 ticks, both with run-ahead at 2, and the point's replay, each ending on the
+straight run's hash. `CPS3RECOMP_REWIND_LOG=1` says every 10 seconds how many states are kept, their memory and what
+keeping one took.
 
 ## Screenshots
 

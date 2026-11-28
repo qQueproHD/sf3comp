@@ -145,6 +145,22 @@ void RegisterGame() {
     RegisterMusic(game);
     RegisterBattle(game);
     game.startOnline = StartBattleOnline;
+    // (online sets and win streaks, runtime/game.h: a match of the board's own between two people, from the match's
+    // records as fight_match.cpp has them: two people (Play_Type 1), and a player with the rounds (PL_Wins against
+    // Battle_Number); not in training, the sources' modes, attract mode or the bonus games)
+    game.matchResult = [] {
+        constexpr uint32_t kPlayType = 0x020113B4, kWins = 0x02011382, kRounds = 0x02016D7D;
+        const bool locked = Ram8(sfiii3::kLocked[0]) == 0xFF || Ram8(sfiii3::kLocked[1]) == 0xFF;
+        if (!locked || Ram16(kPlayType) != 1 || session::InSession() || BattleOn() || AttractOn() || BonusOn() || ModelViewerOn()) {
+            return -1;
+        }
+        const int rounds = Ram8(kRounds + 1) + 1;
+        const int one = static_cast<int16_t>(Ram16(kWins)), two = static_cast<int16_t>(Ram16(kWins + 2));
+        return one >= rounds ? 1 : two >= rounds ? 2 : 0;
+    };
+    // (both back to character select online: in at character select, as training's way there has it, training.cpp)
+    game.joined = [](int p) { return Ram8(sfiii3::kSelectState[p]) >= 2; };
+    game.credits = sfiii3::kCredits;
     RegisterModel(game);
     // (the port's zoom on a fighter, port/zoom.h: where its feet are in the picture, while a round is fought; not in the
     // model viewer, which has sizes of its own)

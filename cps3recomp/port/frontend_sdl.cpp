@@ -8,12 +8,15 @@
 #include "port.h"
 #include "png_write.h"
 #include "present.h"
+#include "socd.h"
 #include "touch.h"
+#include "i18n.h"
 
 #include "../runtime/game.h"
 #include "../recomp-common/arcade_screen.h"
 #include "../recomp-common/gamepads.h"
 #include "../recomp-common/menu_sdl.h"
+#include "../recomp-common/own_shaders.h"
 
 #include <SDL3/SDL.h>
 
@@ -50,6 +53,8 @@ namespace {
                   kBoundActions[3].bit == kRight && kBoundActions[4].bit == kPunch1 && kBoundActions[9].bit == kKick3 &&
                   kBoundActions[10].bit == kStart && kBoundActions[11].bit == kCoin &&
                   kBoundActions[12].bit == (kPunch1 | kPunch2 | kPunch3) && kBoundActions[13].bit == (kKick1 | kKick2 | kKick3));
+
+    SocdCleaner socdCleaners[Machine::kMaxPlayers]; // (each player's own: port/socd.h)
 
     constexpr int kDead = 16000; // how far a stick or a trigger must go to count
 
@@ -362,9 +367,15 @@ int RunWindowed(Port &port) {
         sscanf(size, "%dx%d", &checkWidth, &checkHeight);
     }
     const bool canShade = strcmp(SDL_GetCurrentVideoDriver(), "dummy") != 0;
-    std::string preset = canShade ? port.ShaderPreset() : "";
-    int shaderValue = FeatureValue("display_shader");
     std::string shaderError;
+    std::string preset = canShade ? port.ShaderPreset(&shaderError) : "";
+    if (!shaderError.empty()) {
+        // (Your own with no preset to draw with: why, in the log and to the player)
+        fprintf(stderr, "shader: Your own: %s; the picture is drawn without it\n", shaderError.c_str());
+        port.shaderProblem = recomp::i18n::TrFormat("Your own shader: {}", {shaderError});
+    }
+    int shaderValue = FeatureValue("display_shader");
+    std::string shaderOwn = port.ownShader; // (the name Your own's preset was found by)
     if (!preset.empty() && !Shading::Available(shaderError)) {
         fprintf(stderr, "shader: %s; the picture is drawn without it\n", shaderError.c_str());
         preset.clear();
@@ -385,6 +396,8 @@ int RunWindowed(Port &port) {
                 return true;
             }
             fprintf(stderr, "shader %s: %s; the picture is drawn without it\n", preset.c_str(), shaderError.c_str());
+            port.shaderProblem = recomp::i18n::TrFormat("The shader {} didn't load: {}",
+                                                        {recomp::shaders::Utf8(recomp::shaders::PathOf(preset).filename()), shaderError});
             preset.clear();
             // (an OpenGL window is drawn to by nothing else: one that is not, where this one is)
             Placement at;
@@ -428,11 +441,18 @@ int RunWindowed(Port &port) {
     // for or without OpenGL, where it is and as large
     auto followShader = [&]() {
         const int value = FeatureValue("display_shader");
-        if (value == shaderValue || !port.opt.shader.empty() || !canShade) {
+        // (or Your own's preset chosen by another name, while Your own is chosen)
+        if ((value == shaderValue && (value != port::kYourOwnShaderChoice || port.ownShader == shaderOwn)) || !port.opt.shader.empty() ||
+            !canShade) {
             return;
         }
         shaderValue = value;
-        std::string next = port.ShaderPreset();
+        shaderOwn = port.ownShader;
+        std::string next = port.ShaderPreset(&shaderError);
+        if (!shaderError.empty()) {
+            fprintf(stderr, "shader: Your own: %s; the picture is drawn without it\n", shaderError.c_str());
+            port.shaderProblem = recomp::i18n::TrFormat("Your own shader: {}", {shaderError});
+        }
         if (!next.empty() && !Shading::Available(shaderError)) {
             fprintf(stderr, "shader: %s; the picture is drawn without it\n", shaderError.c_str());
             next.clear();
@@ -446,6 +466,11 @@ int RunWindowed(Port &port) {
                 sayPresenter();
             } else {
                 fprintf(stderr, "shader %s: %s; the one before is kept\n", next.c_str(), shaderError.c_str());
+                while (!shaderError.empty() && shaderError.back() == '.') {
+                    shaderError.pop_back(); // (librashader's ends with one)
+                }
+                port.shaderProblem = recomp::i18n::TrFormat("The shader {} didn't load: {}. The one before is kept.",
+                                                            {recomp::shaders::Utf8(recomp::shaders::PathOf(next).filename()), shaderError});
             }
             return;
         }
@@ -553,7 +578,12 @@ int RunWindowed(Port &port) {
     std::vector<float> musicMade;
     bool musicSilent = false;
 
-    std::vector<SDL_Gamepad *> gamepads;
+    std::vector<SDL_Gamepad *> gamepads; // (those connected, in the order they came)
+    // Each player's gamepad: those the launcher's Controllers page gave a player, then the rest in the order they came
+    // (recomp-common bindings.h: [controllers]); given out again when one comes or goes, not every frame
+    const recomp::PadChoices padChoices = port.opt.settingsPath.empty() ? recomp::PadChoices{} : recomp::LoadPadChoices(port.opt.settingsPath);
+    SDL_Gamepad *playerPads[recomp::kBindMaxPlayers] = {};
+    int padsGivenFor = -1; // (the players they were given out for; -1: to do again)
     // The in-game menu: opened and closed by Esc, F1, a gamepad stick's click or its Start and Select
     // together (the game is left from its "Quit game"). While it is open the game stands still and the
     // controls work the menu; buttons held as it closes do not reach the game until let go.
@@ -568,9 +598,15 @@ int RunWindowed(Port &port) {
     uint16_t previousPad = 0, heldAtClose = 0;
     recomp::MenuRepeat menuRepeat; // (the arrows held go on through the rows and the choices)
     int triggerHeld = 0;
+    // (the practice point's left shoulder: when it went down, 0 if not waiting; tapped, back to the point; held
+    // kPointHold, the point set. And the left trigger once it has made a chord with the shoulder: not rewind until let go)
+    constexpr uint64_t kPointHold = 500; // milliseconds
+    uint64_t shoulderDownAt = 0;
+    bool triggerChorded = false;
     recomp::sdl::MenuChord menuChord; // a gamepad's Start and Select (Back) together: the menu
     // (with a zoom to work, the left stick's click opens the menu when it is let go, unless a shoulder was pressed
-    // while it was held: then it was the zoom's)
+    // while it was held: then it was the zoom's. Only when the launcher's Menu button has the left stick's click:
+    // recomp-common/menu_buttons.h)
     bool stickWaiting = false;
     auto toggleMenu = [&]() {
         if (port.net) {
@@ -638,6 +674,70 @@ int RunWindowed(Port &port) {
     // (a touch screen's controls: touch.h)
     TouchControls touch;
     std::vector<uint32_t> touchPicture;
+    // The open menu answers a finger itself, the touch controls on or off (with them off and no gamepad, it is the only
+    // way back to them): a finger put down on it and lifted where it went down does what a click does on the row under
+    // it, and slid up or down moves through the rows a row at a time. A finger on one of the touch controls'
+    // buttons is still theirs (Menu closes it, the first two choose and go back). What it chose is done in the loop,
+    // after the events (menuTaps)
+    std::vector<recomp::Menu::Chosen> menuTaps;
+    struct MenuFinger {
+        SDL_FingerID id = 0;
+        bool down = false, slid = false;
+        float x0 = 0, y0 = 0, stepY = 0;
+    } menuFinger;
+    touch.before = [&](const SDL_Event &e, float x, float y) {
+        auto tell = [&](recomp::MenuMouse what) {
+            if (menuPlace.w > 0 && menuPlace.h > 0) {
+                float mx = 0, my = 0;
+                menuPlace.ToMenu(x, y, mx, my);
+                menuTaps.push_back(port.menu.Shared().Mouse(what, mx, my));
+            }
+        };
+        if (e.type == SDL_EVENT_FINGER_DOWN) {
+            if (port.net || !port.menu.IsOpen() || touch.OnButton(x, y)) {
+                return false;
+            }
+            // (not chosen yet: choosing a row can scroll the list, and the lift's click, by where the rows were last
+            // drawn, would then land on another row)
+            menuFinger = {e.tfinger.fingerID, true, false, x, y, y};
+            return true;
+        }
+        if (!menuFinger.down || e.tfinger.fingerID != menuFinger.id) {
+            return false;
+        }
+        if (e.type == SDL_EVENT_FINGER_MOTION) {
+            // (a row's worth of sliding, about a twentieth of the menu's height, is a row)
+            const float row = std::max(1.0f, menuPlace.h / 20);
+            menuFinger.slid = menuFinger.slid || std::hypot(x - menuFinger.x0, y - menuFinger.y0) > row * 0.5f;
+            for (; port.menu.IsOpen() && menuFinger.slid && y - menuFinger.stepY <= -row; menuFinger.stepY -= row) {
+                tell(recomp::MenuMouse::WheelDown);
+            }
+            for (; port.menu.IsOpen() && menuFinger.slid && y - menuFinger.stepY >= row; menuFinger.stepY += row) {
+                tell(recomp::MenuMouse::WheelUp);
+            }
+            return true;
+        }
+        menuFinger.down = false;
+        if (e.type == SDL_EVENT_FINGER_UP && !menuFinger.slid && port.menu.IsOpen()) {
+            tell(recomp::MenuMouse::Click);
+        }
+        return true;
+    };
+    auto takeMenuTaps = [&]() {
+        for (const recomp::Menu::Chosen &chosen : menuTaps) {
+            if (!port.menu.IsOpen()) {
+                break;
+            }
+            port.MenuAct(port.menu.Take(chosen));
+            menuDirty = true;
+            if (!port.menu.IsOpen()) {
+                heldAtClose = previousPad;
+            }
+        }
+        menuTaps.clear();
+    };
+    // (checks: CPS3RECOMP_TOUCH_LOG, the touch controls' read logged each frame it presses something)
+    const bool touchLog = getenv("CPS3RECOMP_TOUCH_LOG") != nullptr;
     // (the menu's Zoom row, as last seen: a change there is the camera's, and a zoom's press is the row's)
     int zoomRow = port.zoom.Choice();
     const double kFrameNs = 1e9 / Machine::kFramesPerSecond;
@@ -650,8 +750,9 @@ int RunWindowed(Port &port) {
         }
         // (the checks, CPS3RECOMP_MENU_SCRIPT=FRAME:KEYS[;FRAME:KEYS...]: from that frame on, the in-game menu worked as a
         // player works it, a key a pass of this loop: m opens or closes it, u d l r up, down, left, right, a confirms, b
-        // goes back, cXxY. clicks the mouse at that point of the window, wXxY. turns its wheel down there:
-        // games/sfiii3/checkwide.sh, widescreen switched in the menu)
+        // goes back, cXxY. clicks the mouse at that point of the window, wXxY. turns its wheel down there, and fXxY.,
+        // gXxY., hXxY. put a finger down on the touch screen there, move it there and lift it there (the window's
+        // pixels; with the menu closed too): games/sfiii3/checkwide.sh, widescreen switched in the menu)
         if (static const char *script = getenv("CPS3RECOMP_MENU_SCRIPT"); script && !port.net) {
             static std::string left = script;
             static size_t at = std::string::npos;
@@ -664,7 +765,13 @@ int RunWindowed(Port &port) {
                 if (at < end) {
                     static const std::string kKeys = "udlrab";
                     const char key = left[at++];
-                    if (key == 'c' || key == 'w') {
+                    if (key == 'f' || key == 'g' || key == 'h') {
+                        const size_t stop = std::min(left.find('.', at), end);
+                        float x = 0, y = 0;
+                        sscanf(left.substr(at, stop - at).c_str(), "%fx%f", &x, &y);
+                        at = std::min(stop + 1, end);
+                        touch.Scripted(key == 'f' ? SDL_EVENT_FINGER_DOWN : key == 'g' ? SDL_EVENT_FINGER_MOTION : SDL_EVENT_FINGER_UP, x, y);
+                    } else if (key == 'c' || key == 'w') {
                         // (cXxY. : the mouse clicked at that point of the window; wXxY. : its wheel turned down there, both
                         // as SDL's events, through the mouse's own way into the menu below)
                         const size_t stop = std::min(left.find('.', at), end);
@@ -776,6 +883,8 @@ int RunWindowed(Port &port) {
                     port.Key('k', kKeyRestart);
                 } else if (!port.menu.IsOpen() && ev.key.scancode == SDL_SCANCODE_BACKSLASH && !ev.key.repeat) {
                     port.Key('k', kKeyExtra);
+                } else if (!port.menu.IsOpen() && ev.key.scancode == SDL_SCANCODE_RIGHTBRACKET && !ev.key.repeat) {
+                    port.Key(']'); // (the practice point set: port.h, Practice)
                 } else if (ev.key.scancode == SDL_SCANCODE_F12 && !ev.key.repeat && (ev.key.mod & SDL_KMOD_SHIFT) && !(ev.key.mod & SDL_KMOD_ALT)) {
                     port.SaveScene(); // (the scene export: scene.h)
                 } else if (ev.key.scancode == SDL_SCANCODE_F12 && !ev.key.repeat && (ev.key.mod & SDL_KMOD_CTRL)) {
@@ -810,7 +919,7 @@ int RunWindowed(Port &port) {
                 } else if (ev.gbutton.button == SDL_GAMEPAD_BUTTON_LEFT_STICK && Zoom::Possible() && !port.menu.IsOpen()) {
                     stickWaiting = true;
                 } else if (recomp::sdl::MenuButton(static_cast<SDL_GamepadButton>(ev.gbutton.button))) {
-                    toggleMenu(); // (Guide, or the left stick's click)
+                    toggleMenu(); // (Guide, or the left stick's click: as the launcher's Menu button has them)
                 } else if (port.menu.IsOpen()) {
                     break;
                 } else if (ev.gbutton.button == SDL_GAMEPAD_BUTTON_RIGHT_STICK) {
@@ -820,13 +929,30 @@ int RunWindowed(Port &port) {
                         port.Key('p');
                     }
                 } else if (ev.gbutton.button == SDL_GAMEPAD_BUTTON_LEFT_SHOULDER) {
-                    port.Key(multi ? 'n' : 'k', kKeyRestart);
+                    // (the left trigger held: Backslash's kKeyExtra, the practice point's replay; with the practice point
+                    // on, tapped: back to it (or the game's Start over), held: the point set; port.h, Practice)
+                    SDL_Gamepad *gp = SDL_GetGamepadFromID(ev.gbutton.which);
+                    const bool chord = !multi && gp && SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_LEFT_TRIGGER) > kDead;
+                    if (chord) {
+                        triggerChorded = true;
+                        port.Key('k', kKeyExtra);
+                    } else if (!multi && port.PracticeOn()) {
+                        shoulderDownAt = std::max<uint64_t>(1, SDL_GetTicks());
+                    } else {
+                        port.Key(multi ? 'n' : 'k', kKeyRestart);
+                    }
                 }
                 break;
             case SDL_EVENT_GAMEPAD_BUTTON_UP:
+                if (ev.gbutton.button == SDL_GAMEPAD_BUTTON_LEFT_SHOULDER && shoulderDownAt) {
+                    shoulderDownAt = 0;
+                    if (!port.menu.IsOpen()) {
+                        port.Key('k', kKeyRestart);
+                    }
+                }
                 if (ev.gbutton.button == SDL_GAMEPAD_BUTTON_LEFT_STICK && stickWaiting) {
                     stickWaiting = false;
-                    if (!port.menu.IsOpen()) {
+                    if (!port.menu.IsOpen() && recomp::sdl::MenuButton(SDL_GAMEPAD_BUTTON_LEFT_STICK)) {
                         toggleMenu();
                     }
                 }
@@ -849,6 +975,7 @@ int RunWindowed(Port &port) {
             case SDL_EVENT_GAMEPAD_ADDED:
                 if (SDL_Gamepad *gp = SDL_OpenGamepad(ev.gdevice.which)) {
                     gamepads.push_back(gp);
+                    padsGivenFor = -1;
                 }
                 break;
             case SDL_EVENT_GAMEPAD_REMOVED:
@@ -856,6 +983,9 @@ int RunWindowed(Port &port) {
                     if (SDL_GetGamepadID(*it) == ev.gdevice.which) {
                         SDL_CloseGamepad(*it);
                         gamepads.erase(it);
+                        // (given out again before any player's gamepad is read: this one is no longer open)
+                        std::fill(std::begin(playerPads), std::end(playerPads), nullptr);
+                        padsGivenFor = -1;
                         break;
                     }
                 }
@@ -864,6 +994,10 @@ int RunWindowed(Port &port) {
             }
         }
 
+        takeMenuTaps(); // (the menu's taps, taken with the fingers: menuFinger)
+        // (the Touch controls and Touch movement features: main.cpp; not on a Mac, where neither is: on, floating)
+        touch.Allow(FeatureValue("touch_controls") != 1);
+        touch.Floating(FeatureValue("touch_movement") == 0);
         if (touch.TakeMenuPress()) {
             toggleMenu();
         }
@@ -888,8 +1022,9 @@ int RunWindowed(Port &port) {
             }
         }
         if (port.opt.moviePlay.empty() && !port.opt.autoPlay) {
-            // The keyboard is every player's (each has the keys chosen for it); the first gamepad is player
-            // 1's, a second player 2's, and so on
+            // The keyboard is every player's (each has the keys chosen for it); each gamepad is the player's the
+            // launcher's Controllers page gave it, or, left at Automatic, the next player without one in the order
+            // they came; one set to Not used plays nobody
             uint16_t pads[Machine::kMaxPlayers] = {};
             int keyCount = 0;
             const bool *keys = SDL_GetKeyboardState(&keyCount);
@@ -903,6 +1038,16 @@ int RunWindowed(Port &port) {
                 port.service = keys[SDL_SCANCODE_9] && !KeyBound(SDL_SCANCODE_9);
             }
             bool hurry = multi && keys[SDL_SCANCODE_F] && !KeyBound(SDL_SCANCODE_F);
+            // (rewind: R held, or a gamepad's left trigger below; port.h, Rewind)
+            const bool rewindOn = port.RewindOn() && !multi;
+            bool rewinding = rewindOn && !(SDL_GetModState() & SDL_KMOD_ALT) && !port.typing && !keysAfterChat && keys[SDL_SCANCODE_R] &&
+                             !KeyBound(SDL_SCANCODE_R);
+            if (shoulderDownAt && SDL_GetTicks() - shoulderDownAt >= kPointHold) {
+                shoulderDownAt = 0;
+                if (!port.menu.IsOpen()) {
+                    port.Key(']');
+                }
+            }
             // (the camera moved by the arrows with Left Shift held, and by each gamepad's d-pad or stick with its click held)
             if (!port.menu.IsOpen()) {
                 int across = 0, down = 0;
@@ -927,25 +1072,47 @@ int RunWindowed(Port &port) {
                 }
                 port.zoom.Pan(std::clamp(across, -1, 1), std::clamp(down, -1, 1));
             }
-            pads[0] |= touch.Read(port.menu.IsOpen());
+            const uint16_t touched = touch.Read(port.menu.IsOpen());
+            if (touchLog && touched) {
+                printf("touch %llu: %04x\n", static_cast<unsigned long long>(port.frame), touched);
+            }
+            pads[0] |= touched;
             bool trigger = false;
             const bool stepOnTrigger = !PadInputBound(g_bindings, Table(), {-1, SDL_GAMEPAD_AXIS_LEFT_TRIGGER});
-            for (size_t i = 0; i < gamepads.size() && static_cast<int>(i) < Players(); i++) {
-                pads[i] |= ReadGamepad(gamepads[i], static_cast<int>(i));
-                const bool left = stepOnTrigger && SDL_GetGamepadAxis(gamepads[i], SDL_GAMEPAD_AXIS_LEFT_TRIGGER) > kDead;
+            if (padsGivenFor != Players()) {
+                recomp::AssignPads(padChoices, gamepads.data(), static_cast<int>(gamepads.size()), Players(), playerPads);
+                padsGivenFor = Players();
+            }
+            for (int i = 0; i < Players() && i < recomp::kBindMaxPlayers && i < Machine::kMaxPlayers; i++) {
+                SDL_Gamepad *const gp = playerPads[i];
+                if (!gp) continue;
+                pads[i] |= ReadGamepad(gp, i);
+                const bool left = stepOnTrigger && SDL_GetGamepadAxis(gp, SDL_GAMEPAD_AXIS_LEFT_TRIGGER) > kDead;
                 trigger = trigger || left;
                 hurry = hurry || (multi && left);
-                // (while the game runs, the left trigger is its player's Tag: kTag; in a Multi game run, fast forward)
-                if (left && !port.paused && !multi) {
+                // (while the game runs, the left trigger is its player's Tag: kTag, or with rewind on, rewind; in a Multi
+                // game run, fast forward)
+                if (left && !port.paused && rewindOn) {
+                    rewinding = rewinding || !triggerChorded;
+                } else if (left && !port.paused && !multi) {
                     pads[i] |= kTag;
                 }
             }
+            if (!trigger) {
+                triggerChorded = false;
+            }
+            port.rewindHeld = rewinding && !port.menu.IsOpen();
             // The left trigger goes on by one frame (held: frame after frame, after a moment), once the game
             // has been stopped: it does not stop it, so a touch of it while playing does nothing
             port.hurry = hurry && !port.menu.IsOpen();
             triggerHeld = trigger && port.paused ? triggerHeld + 1 : 0;
             if (!port.menu.IsOpen() && (triggerHeld == 1 || (triggerHeld > 24 && triggerHeld % 4 == 0))) {
                 port.Key('o');
+            }
+            // (opposite directions held together, as the SOCD cleaner says: port/socd.h)
+            const auto socd = static_cast<Socd>(std::clamp(FeatureValue("socd"), 0, 3));
+            for (int player = 0; player < Machine::kMaxPlayers; player++) {
+                pads[player] = socdCleaners[player].Clean(socd, pads[player]);
             }
             uint16_t all = 0;
             for (const uint16_t one : pads) {
@@ -955,7 +1122,8 @@ int RunWindowed(Port &port) {
             previousPad = all;
             // Start and Select held together open and close the menu, whatever they are bound to (the second
             // of them to go down is not also a press in the menu; neither reaches the game until let go)
-            if (menuChord.Step(gamepads.data(), static_cast<int>(gamepads.size()))) {
+            // (the players' gamepads: one that plays nobody does not open it)
+            if (menuChord.Step(playerPads, std::min(Players(), recomp::kBindMaxPlayers))) {
                 toggleMenu();
                 pressed = 0;
                 heldAtClose = previousPad;
@@ -1023,6 +1191,14 @@ int RunWindowed(Port &port) {
             }
         }
         followShader();
+        if (!port.shaderProblem.empty()) {
+            // (a preset that couldn't be drawn: that it wasn't at the bottom for a while, and why in the menu, now if it is
+            // open, else when it next opens; and in the log)
+            port.menu.Note(port.shaderProblem);
+            port.shotSaid = recomp::i18n::Tr("SHADER NOT LOADED: THE MENU SAYS WHY");
+            port.shotTicks = 600;
+            port.shaderProblem.clear();
+        }
 #ifndef __ANDROID__
         // The Arcade monitor page's screen or full screen mode, or the Display page's Full screen as, changed (the menu can
         // put them back to off): the window to that screen, full screen in that mode (ArcadeScreen::Follow's work, with
@@ -1273,6 +1449,7 @@ int RunWindowed(Port &port) {
             presenter.Show(shown.data(), port.ShownWidth(), Video::kHeight, where, isZoomed ? &zoomed : nullptr);
         }
         port.LagShown(ran, SDL_GetTicksNS());
+        port.FrameShown(SDL_GetTicksNS());
         // (the checks, CPS3RECOMP_WINDOW_SHOT=PREFIX:EVERY: every so many frames what the window was shown, read back, to
         // PREFIX<frame>.png: games/sfiii3/checkwide.sh)
         static const char *windowShot = getenv("CPS3RECOMP_WINDOW_SHOT");

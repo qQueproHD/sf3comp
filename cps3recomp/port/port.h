@@ -7,9 +7,11 @@
 #include "system.h"
 #include "menu.h"
 #include "netplay.h"
+#include "own_shader.h"
 #include "bezel.h"
 #include "present.h"
 #include "replay.h"
+#include "rewind.h"
 #include "soundtrack.h"
 #include "video_record.h"
 #include "scene.h"
@@ -151,6 +153,7 @@ struct Port {
     uint16_t pad[cps3recomp::Machine::kMaxPlayers] = {}; // what the players hold (cps3recomp::Button bits), set by the window
     bool service = false, test = false;
     Movie playMovie, recMovie;
+    uint64_t movieNext = 0; // (the frame the movie played last was before)
     uint16_t lastRecorded[cps3recomp::Machine::kMaxPlayers] = {0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF};
     FILE *hashFile = nullptr;
     uint64_t autoState = 0;
@@ -197,17 +200,10 @@ struct Port {
     // few frames in each tick beside the game, which goes on as it does. At each kept state the replay is put back to
     // it, so that whatever a frame run again does differently (a save state loaded, the board reset) lasts a second at
     // most. A CPS-3 state is about 10 MB (its 8 MB of character RAM), so the kept states share their unchanged 64 KB
-    // blocks with the one before (InstantState): about a megabyte a second. A guest stage's board (Machine::KeepStage),
+    // blocks with the one before (InstantState, rewind.h): about a megabyte a second. A guest stage's board (Machine::KeepStage),
     // which a save state does not hold, is kept beside each state, and stepped in the replay as RunFrame steps it.
     // (Not `replay`: that is the match replays', replay.h.)
-    struct InstantState {
-        static constexpr size_t kBlock = 64 * 1024;
-        std::vector<std::shared_ptr<const std::vector<uint8_t>>> blocks;
-        size_t size = 0;
-        // From a state; the blocks the same as `before`'s shared with it (none: all its own)
-        void From(const std::vector<uint8_t> &data, const InstantState *before);
-        void Into(std::vector<uint8_t> &data) const;
-    };
+    using InstantState = BlockState;
     struct Instant {
         struct Kept {
             uint64_t frame = 0; // (the state before this frame ran)
@@ -237,6 +233,39 @@ struct Port {
     } instant;
     void ReplayKeep(const uint16_t *pressed); // (each frame, before it runs)
     void SaveReplay();
+    // Rewind and the practice point (docs/FEATURES.md), the Game page's switches, never online nor in a match replay
+    // played. Rewind: while rewindHeld (R, or a gamepad's left trigger, held), a kept state back each tick, three
+    // frames, shown and unheard; let go, the game plays on from there. The states are kept every kRewindEvery frames
+    // before they run, for about half a minute, sharing their unchanged blocks (rewind.h, StateRing). The practice
+    // point: ']' (a gamepad's left shoulder held) keeps the game as it is; then Backspace (the shoulder tapped) puts it
+    // back, and Backslash (the shoulder with the left trigger held) shows the last attempt from it again, the controls
+    // as they were pressed, until a button is pressed.
+    static constexpr int kRewindEvery = 3;
+    static constexpr size_t kRewindMost = 600, kRewindMostBytes = size_t{384} << 20;
+    struct Rewind {
+        StateRing ring;
+        bool was = false; // (rewinding the tick before)
+        int ticks = 0;    // (how long it has been held, for the notice)
+    } rewind;
+    bool rewindHeld = false; // (set by the window each tick; tests: 'w' switches it)
+    bool RewindOn() const;
+    void RewindKeep(const uint16_t *pressed); // (each frame, before it runs)
+    bool RewindTick();                        // (a tick while held: false if there was nothing to go back to)
+    struct Practice {
+        std::vector<uint8_t> state, stage; // (none: no point set)
+        uint64_t frame = 0;
+        std::vector<StateRing::Input> attempt, last, replay; // (since the point; the attempt before; being replayed)
+        bool replaying = false;
+        size_t replayAt = 0;
+        uint16_t heldAtReplay[cps3recomp::Machine::kMaxPlayers] = {};
+    } practice;
+    bool PracticeOn() const;
+    void PracticeSet();
+    bool PracticeBack();                   // (false: no point set)
+    bool PracticeReplay();                 // (false: no point set)
+    void PracticeInput(uint16_t *pressed); // (each frame, before it runs: the replay's controls, and the attempt kept)
+    void GoneBack();                       // (the frame count gone back: what came after it forgotten)
+    void Said(const char *what);           // (a few seconds at the bottom of the picture)
     // Each tick: frames of the replay being made, in about `budget` ms (the time the window's tick has to spare, as
     // the frontend reckons it: none at all is taken when that is less than a swap and a frame, but for one tick in 30
     // so that it ends; headless: 8 frames a tick, whatever they take)
@@ -342,8 +371,23 @@ struct Port {
     std::string PlayerFolder() const; // (the one settings.ini and the saves are in, with a slash; "" if none)
 
     bool Init(std::string &error);
-    // The shader preset to draw with (shading.h): --shader's, or the Display page's Shader's; "" for none
-    std::string ShaderPreset() const;
+    // The shader preset to draw with (shading.h): --shader's, or the Display page's Shader's; "" for none (and for Your
+    // own with no preset to draw with, `why`, for the player)
+    std::string ShaderPreset(std::string *why = nullptr) const;
+    // The Shader's Your own (own_shader.h, recomp-common/own_shaders.h): the preset chosen by its name, settings.ini's
+    // [shader] own ("": the first found), which the launcher and the menu's Your own preset row choose; the folders it is
+    // looked for in, this game's own (beside settings.ini) and the one every game shares (the launcher's); and why the
+    // preset could not be drawn, for the frontend to tell the player (over the picture and in the menu)
+    std::string ownShader;
+    std::filesystem::path OwnShadersGame() const;
+    std::filesystem::path OwnShadersShared() const;
+    std::string shaderProblem;
+    // The FPS counter (the Display page's fps_counter): the frames handed to the screen each second, counted over the
+    // last half second (FrameShown: the frontend's, as each is)
+    void FrameShown(uint64_t ns);
+    double fps = 0;
+    uint64_t fpsFrom = 0;
+    unsigned fpsFrames = 0;
     // Your own bezel's folder (bezel.h)
     std::string BezelFolder() const;
     // One frame: input (window, movie or made up), the machine, the per-frame outputs
@@ -361,14 +405,15 @@ struct Port {
     bool connecting = false; // (the other side not found yet: a window shows the wait)
     bool leaving = false;    // (online, waiting: Esc asked whether to leave; said on the screen until answered)
     bool cameIn = false;
-    // Online: each side's win streak (matches won in a row, the other player's against them), counted in the fights
-    // both players have pressed Start for (fight/battle.h: the round's result, and the rounds a match is won with); said
-    // under the life bars from two on. Each player's machine counts the same, both running the same game.
+    // (this side's player has pressed Start in the match: "PRESS START TO JOIN" is said until then)
     bool otherIn = false;
-    int streak[2] = {}, roundsWon[2] = {};
-    bool roundCounted = false;
-    int roundQuiet = 0;
-    void Streaks();     // (this side's player has pressed Start in the match: "PRESS START TO JOIN" is said until then)
+    // Online: each side's win streak (matches won in a row, the other player's against them), by the board's player:
+    // the matches the set counts (Netplay::Set, from Game::matchResult on confirmed frames), said under the life bars
+    // from two on. Each player's machine counts the same, both running the same game. Started again when the host
+    // swaps the sides.
+    int streak[2] = {};
+    void OnlineWon(int side);
+    void OnlineSidesSwapped();
     // Online: the chat (issue #196). Each line is said on the picture for a while (`until`, a tick), the newest
     // lowest; and the line this side's player is typing, while they type one (the frontend's: Enter sends it, Esc
     // puts it away; the keyboard is the chat's meanwhile, not the game's)
@@ -407,7 +452,14 @@ struct Port {
     // `at`: "mode=N:SEED" (the host's: Game::startOnline) and "row=value" (a player's own fighters and their super arts on
     // the Tag team battle page: player 1's rows the host's, player 2's the other's), commas between. A mode starts with
     // each row as the events before its frame left it (onlinePickLog: a rollback may have run a later pick already)
-    void OnlineEvent(int player, const std::string &text, uint64_t at);
+    // (`player`: the sender's machine, 0 the host's; `side`: the board's player that machine plays at that frame, whose
+    // fighters' rows it picks: Swap sides moves them)
+    void OnlineEvent(int player, int side, const std::string &text, uint64_t at);
+    // Both players back to character select (netplay.h, OnlineReselect): the asks, and the board's way there after
+    // them (Step), kept with the game's state in a rollback (Netplay::Kept)
+    OnlineReselect onlineReselect;
+    bool OnlineReselectHere() const;
+    void OnlineReselectBoot();
     std::map<std::string, std::map<uint64_t, int>> onlinePickLog;
     std::map<std::string, int> onlinePickBase; // (each row as it was before its first event)
     // The host's pause for choosing: while the host's match menu is open the game stands still for both ("setup=1",
@@ -439,6 +491,7 @@ struct Port {
     void OnlineCommand(size_t index);
     void LeaveQuestion(unsigned pressed);
     std::vector<int> onlineModes;           // (the menu's commands' modes, in its order)
+    std::vector<std::string> onlineMore;    // (and the commands after them: "swap", "reselect")
     std::vector<std::string> onlineRows;    // (the menu's features' rows: the game's features they stand for)
     std::map<std::string, int> onlinePicks; // (this player's picks as chosen, before their events have run)
     int onlineTeamSize = -1;                // (team_size value the open online menu was built with)

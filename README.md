@@ -55,6 +55,8 @@ In all three games, from the in-game menu, a fight with no clock that nobody los
 - In 3rd Strike, a **red parry drill**, and the **Evo Moment 37** scenario: Ken on a sliver of health against
   Chun-Li's super art, try after try, with your parries counted.
 - Health and super art gauges refilled, any stage (the other games' too), and save states.
+- **Rewind** through the last half a minute (hold R) and a **practice point** to go back to at once (`]` sets it,
+  Backspace returns), in training or anywhere else offline.
 
 ## Online play
 
@@ -65,6 +67,10 @@ match has the host's board settings. Any mix of macOS, Linux, the Steam Deck and
 In a 3rd Strike match, Esc opens the in-game menu. The host's pauses the game for both players and opens the other
 player's too: each picks their own team's fighters and their super arts, the other player says **Ready**, and the host
 starts the **tag team battle** (or goes back to versus) from its Online match page.
+
+In 3rd Strike the host can also choose a **set** (FT3, FT5 or FT10) under Host on the Online page: the **score** is at
+the top, the win streaks under the life bars, and the set's winner is shown before both go back to the launcher. The
+host can **swap sides** without leaving, and in every game both players can go **back to character select** together.
 
 ## Replays
 
@@ -113,7 +119,7 @@ playable by either player.
   An arcade monitor (CRT Emudriver) gets the board's own 384 x 224 in full screen, or a super resolution such as
   2560 x 224, on the screen you choose, synced to the screen with a frame delay, and on Windows made at the board's
   exact 59.60 Hz with Switchres, as GroovyMAME does: set up on the launcher's Features page.
-- **An in-game menu** (Esc or F1; on a gamepad the left stick's click, or Start and Select together): save states,
+- **An in-game menu** (Esc or F1; on a gamepad Guide, or Start and Select together): save states,
   speed, the cheats, the board's own settings and test menu, every feature. Pure plays exactly as the board does;
   Enhanced (the default) adds free play, arcade timing, integer scaling and, in widescreen, invisible walls.
 - **Scene export**: any moment of any game saved as its layers, each a see-through PNG (the board's tilemaps, the
@@ -149,8 +155,9 @@ playable by either player.
   `sf3comp-launcher`, choose your ROM sets, and press **Add to Steam**; the game is then in Game Mode under
   **Non-Steam**.
 - **Android:** install `SF3comp-android.apk` (64-bit ARM, Android 9 or later) and add your ROM sets from the phone:
-  they are copied into the app's folder. Touch controls are on the screen until you use a gamepad; Back or the
-  screen's Menu button opens the in-game menu.
+  they are copied into the app's folder. Touch controls are on the screen until you use a gamepad (the stick
+  wherever your left thumb goes down; they can be turned off); Back or the screen's Menu button opens the in-game
+  menu, which answers a tap.
 
 Settings, save states and the board's settings memory are kept in your user folder.
 

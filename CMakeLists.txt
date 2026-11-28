@@ -115,7 +115,7 @@ if (NOT GAME_SOURCES)
     set(GAME_SOURCES ${CR}/runtime/no_game.cpp)
 endif ()
 set(PORT_SOURCES
-    ${CR}/port/main.cpp ${CR}/port/scene.cpp ${CR}/port/video_record.cpp ${CR}/port/frontend_sdl.cpp ${CR}/port/present.cpp ${CR}/port/bezel.cpp ${CR}/port/shading.cpp ${CR}/port/zoom.cpp
+    ${CR}/port/main.cpp ${CR}/port/crash_log.cpp ${CR}/port/scene.cpp ${CR}/port/video_record.cpp ${CR}/port/frontend_sdl.cpp ${CR}/port/present.cpp ${CR}/port/bezel.cpp ${CR}/port/shading.cpp ${CR}/port/zoom.cpp
     ${CR}/port/replay.cpp ${CR}/port/menu.cpp ${CR}/port/hud.cpp ${CR}/port/touch.cpp ${CR}/port/netplay.cpp
     ${CR}/port/soundtrack.cpp ${CR}/port/decoders.cpp ${CR}/port/dreamcast.cpp ${CR}/port/native_gpu.cpp
     ${CR}/recomp-common/launcher/src/online.cpp ${CR}/recomp-common/launcher/src/run_program.cpp
@@ -157,6 +157,11 @@ endif ()
 add_dependencies(${GAME} game_cfg)
 if (WIN32)
     set_target_properties(${GAME} PROPERTIES WIN32_EXECUTABLE ON)
+    # (what the program is, whose and which version, and its manifest: cps3recomp/port/windows/)
+    include(${CR}/port/windows/resources.cmake)
+    file(STRINGS "${GAME_DIR}/game.cfg" GAME_NAME_LINE REGEX "^name *=" LIMIT_COUNT 1)
+    string(REGEX REPLACE "^name *= *" "" GAME_FULL_NAME "${GAME_NAME_LINE}")
+    recomp_windows_resources(${GAME} ${GAME} "${GAME_FULL_NAME}" "${RECOMP_VERSION}")
 endif ()
 target_include_directories(${GAME} PRIVATE ${CR}/runtime ${CR}/port ${CR}/fight "${WORK_DIR}" "${GAME_DIR}")
 if (SHARED_DIR)
@@ -172,12 +177,20 @@ if (APPLE)
 endif ()
 if (WIN32)
     target_link_libraries(${GAME} PRIVATE ws2_32 iphlpapi)
+    # (online play's requests made with WinHTTP, not a hidden curl.exe, which antivirus programs take for a
+    # downloader: recomp-common/launcher/src/winhttp_curl.h)
+    target_link_libraries(${GAME} PRIVATE winhttp)
+    target_compile_definitions(${GAME} PRIVATE RECOMP_WINHTTP=1)
 endif ()
 if (ANDROID)
     target_link_libraries(${GAME} PRIVATE log)
 endif ()
 target_compile_options(${GAME} PRIVATE -Wall -Wextra -Wno-unused-parameter -Wno-unused-label -Wno-unused-variable)
 target_compile_definitions(${GAME} PRIVATE RECOMP_VERSION="${RECOMP_VERSION}")
+# (the gamepad's buttons that open the in-game menu until the player chooses, on the launcher's Controllers page: Guide,
+# or Start and Select together; not the left stick's click, which a player presses by accident. The game's, for a game
+# started on its own; the launcher's is set the same in cps3recomp/launcher/CMakeLists.txt. recomp-common/menu_buttons.h)
+target_compile_definitions(${GAME} PRIVATE RECOMP_MENU_BUTTON_DEFAULT="guide")
 
 # The launcher (cps3recomp/launcher; recomp-common's), told about the game from its game.cfg
 function(game_cfg key out)
